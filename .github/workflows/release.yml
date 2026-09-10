@@ -7,7 +7,6 @@ on:
 
 permissions:
   contents: write
-  id-token: write
 
 jobs:
   release:
@@ -22,21 +21,6 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Generate changelog
-        id: changelog
-        run: |
-          # Get previous tag
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
-          if [ -z "$PREV_TAG" ]; then
-            CHANGES=$(git log --pretty=format:"- %s (%h)" HEAD)
-          else
-            CHANGES=$(git log --pretty=format:"- %s (%h)" ${PREV_TAG}..HEAD)
-          fi
-          # Write to output using delimiter
-          echo "changes<<EOF" >> $GITHUB_OUTPUT
-          echo "$CHANGES" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v6
         with:
@@ -45,39 +29,6 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload release assets to release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: |
-            dist/sentient-cli_*.tar.gz
-            dist/sentient-cli_*.zip
-            dist/checksums.txt
-          body: |
-            ## What's Changed
-
-            ${{ steps.changelog.outputs.changes }}
-
-            ## Installation
-
-            ### Binary downloads
-            Download the appropriate archive for your platform from the assets below.
-
-            ### Go
-            ```bash
-            go install github.com/protorians/sentient-cli@${{ github.ref_name }}
-            ```
-
-            ### npm / pnpm / yarn / bun
-            ```bash
-            npm install -g @sentients/cli
-            # or
-            pnpm add -g @sentients/cli
-            # or
-            yarn global add @sentients/cli
-            # or
-            bun add -g @sentients/cli
-            ```
 
   publish-npm:
     name: Publish to npm
@@ -98,7 +49,6 @@ jobs:
       - name: Update npm package version
         working-directory: npm/sentient-cli
         run: |
-          # Update version in package.json
           jq --arg v "${{ steps.version.outputs.VERSION }}" '.version = $v' package.json > package.json.tmp && mv package.json.tmp package.json
 
       - name: Publish to npm

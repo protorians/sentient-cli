@@ -49,7 +49,8 @@ function getPlatform() {
 }
 
 function getDownloadUrl(version, platform) {
-  const archiveName = `${BINARY_NAME}-cli_${version}_${platform.triple}.${platform.ext}`;
+  const archiveVersion = version.replace(/^v/, "");
+  const archiveName = `${BINARY_NAME}-cli_${archiveVersion}_${platform.triple}.${platform.ext}`;
   return `https://github.com/${REPO}/releases/download/${version}/${archiveName}`;
 }
 

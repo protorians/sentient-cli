@@ -34,6 +34,35 @@ archives:
       - goos: windows
         format: zip
 
+release:
+  name_template: "{{ .ProjectName }} v{{ .Version }}"
+  header: |
+    ## Download binaries
+
+    | Platform | Architecture | Archive |
+    |----------|--------------|---------|
+    | Linux | amd64 | `sentient-cli_{{ .Version }}_linux_amd64.tar.gz` |
+    | Linux | arm64 | `sentient-cli_{{ .Version }}_linux_arm64.tar.gz` |
+    | macOS | amd64 (Intel) | `sentient-cli_{{ .Version }}_darwin_amd64.tar.gz` |
+    | macOS | arm64 (Apple Silicon) | `sentient-cli_{{ .Version }}_darwin_arm64.tar.gz` |
+    | Windows | amd64 | `sentient-cli_{{ .Version }}_windows_amd64.zip` |
+
+    Checksums for all archives are in `checksums.txt`.
+
+    ## Install
+
+    ### Go
+
+    ```bash
+    go install github.com/protorians/sentient-cli@{{ .Tag }}
+    ```
+
+    ### npm / pnpm / yarn / bun
+
+    ```bash
+    npm install -g @sentients/cli
+    ```
+
 checksum:
   name_template: checksums.txt
 

@@ -27,7 +27,7 @@ jobs:
   bump:
     name: Bump version
     runs-on: ubuntu-latest
-    if: github.ref_name == 'alpha' || github.ref_name == 'beta' || github.ref_name == 'rc' || github.ref_name == 'release/latest'
+    if: github.ref_name == 'alpha' || github.ref_name == 'beta' || github.ref_name == 'rc' || github.ref_name == 'main'
     steps:
       - uses: actions/checkout@v4
         with:
