@@ -20,7 +20,9 @@ func createTestModule(t *testing.T, root, name string) {
 func setupDebugProject(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, config.ExternalModulesDir), 0o755)
+	if err := os.MkdirAll(filepath.Join(root, config.ExternalModulesDir), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	return root
 }
 
@@ -104,7 +106,9 @@ func TestDebugAllSkipsNonModules(t *testing.T) {
 	root := setupDebugProject(t)
 	createTestModule(t, root, "real-module")
 	// Create a directory without manifest.json
-	os.MkdirAll(filepath.Join(root, config.ExternalModulesDir, "not-a-module"), 0o755)
+	if err := os.MkdirAll(filepath.Join(root, config.ExternalModulesDir, "not-a-module"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	debugger := &Debugger{Root: root}
 	results, err := debugger.DebugAll()

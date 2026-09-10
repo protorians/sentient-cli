@@ -35,7 +35,9 @@ func TestHumanSize(t *testing.T) {
 func TestListModules(t *testing.T) {
 	root := t.TempDir()
 	extDir := filepath.Join(root, config.ExternalModulesDir)
-	os.MkdirAll(extDir, 0o755)
+	if err := os.MkdirAll(extDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	// Create two modules
 	creator := &module.Creator{Root: root}

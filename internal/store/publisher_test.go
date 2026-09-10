@@ -198,7 +198,9 @@ func TestPublishMissingArchive(t *testing.T) {
 func TestPublishServerError(t *testing.T) {
 	tmpDir := t.TempDir()
 	archivePath := filepath.Join(tmpDir, "mod.smp")
-	os.WriteFile(archivePath, []byte("data"), 0o644)
+	if err := os.WriteFile(archivePath, []byte("data"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusConflict)
