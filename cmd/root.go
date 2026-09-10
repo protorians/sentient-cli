@@ -71,6 +71,12 @@ func Execute(version, commit, date string) {
 		lipgloss.SetColorProfile(termenv.Ascii)
 	}
 
+	// NFR-006: check for updates (non-blocking, cached daily)
+	if updateMsg := pkg.CheckForUpdate(version); updateMsg != "" {
+		s := tui.NewStyles()
+		fmt.Fprintln(os.Stderr, s.Info.Render(updateMsg))
+	}
+
 	if err := rootCmd.Execute(); err != nil {
 		printCmdError(err)
 		os.Exit(pkg.ExitCodeFor(err))

@@ -1,0 +1,153 @@
+package pkg
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+)
+
+// GitHubRelease is the minimal representation of a GitHub release for version
+// comparison (NFR-006: auto-update detection).
+type GitHubRelease struct {
+	TagName string `json:"tag_name"`
+}
+
+// UpdateCheckURL is the GitHub API endpoint for the latest release.
+const UpdateCheckURL = "https://api.github.com/repos/protorians/sentient-cli/releases/latest"
+
+// CacheDuration controls how often the update check runs (once per day).
+const CacheDuration = 24 * time.Hour
+
+// cachePath returns the path to the update check cache file.
+func cachePath() string {
+	dir := filepath.Join(os.TempDir(), "sentient-cli")
+	os.MkdirAll(dir, 0o755)
+	return filepath.Join(dir, ".update-check")
+}
+
+// CheckForUpdate queries the GitHub releases API and returns a notification
+// message when a newer version is available. Returns empty string when the
+// CLI is up-to-date or when the check should be skipped (cached, offline, etc.).
+func CheckForUpdate(currentVersion string) string {
+	if currentVersion == "" || currentVersion == "dev" {
+		return ""
+	}
+
+	// Respect cache: skip if checked less than CacheDuration ago.
+	if cached, ok := readCache(); ok {
+		if time.Since(cached) < CacheDuration {
+			return ""
+		}
+	}
+
+	latestVersion, err := fetchLatestVersion()
+	if err != nil {
+		return ""
+	}
+
+	writeCache(time.Now())
+
+	currentClean := normalizeVersion(currentVersion)
+	latestClean := normalizeVersion(latestVersion)
+
+	if currentClean == latestClean || isNewer(currentClean, latestClean) {
+		return ""
+	}
+
+	return fmt.Sprintf(
+		"Mise à jour disponible : v%s → v%s\n  → https://github.com/protorians/sentient-cli/releases/latest",
+		currentClean, latestClean,
+	)
+}
+
+// fetchLatestVersion retrieves the latest release tag from GitHub.
+func fetchLatestVersion() (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", UpdateCheckURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Accept", "application/vnd.github.v3+json")
+	req.Header.Set("User-Agent", "sentient-cli")
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("GitHub API returned %d", resp.StatusCode)
+	}
+
+	var release GitHubRelease
+	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+		return "", err
+	}
+	return release.TagName, nil
+}
+
+// normalizeVersion strips a leading "v" and whitespace.
+func normalizeVersion(v string) string {
+	v = strings.TrimSpace(v)
+	v = strings.TrimPrefix(v, "v")
+	return v
+}
+
+// isNewer returns true when latest is strictly newer than current using
+// simple semver comparison (major.minor.patch).
+func isNewer(current, latest string) bool {
+	cur := parseSemver(current)
+	lat := parseSemver(latest)
+
+	if lat[0] != cur[0] {
+		return lat[0] > cur[0]
+	}
+	if lat[1] != cur[1] {
+		return lat[1] > cur[1]
+	}
+	return lat[2] > cur[2]
+}
+
+// parseSemver splits a version string into [major, minor, patch].
+func parseSemver(v string) [3]int {
+	var parts [3]int
+	v = strings.TrimPrefix(v, "v")
+	// Strip any pre-release or build metadata
+	if idx := strings.IndexAny(v, "-+"); idx != -1 {
+		v = v[:idx]
+	}
+	segments := strings.SplitN(v, ".", 3)
+	for i, s := range segments {
+		if i >= 3 {
+			break
+		}
+		parts[i], _ = strconv.Atoi(s)
+	}
+	return parts
+}
+
+func readCache() (time.Time, bool) {
+	data, err := os.ReadFile(cachePath())
+	if err != nil {
+		return time.Time{}, false
+	}
+	ts := strings.TrimSpace(string(data))
+	t, err := time.Parse(time.RFC3339, ts)
+	if err != nil {
+		return time.Time{}, false
+	}
+	return t, true
+}
+
+func writeCache(t time.Time) {
+	os.WriteFile(cachePath(), []byte(t.Format(time.RFC3339)), 0o644)
+}

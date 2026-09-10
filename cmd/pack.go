@@ -57,7 +57,10 @@ func runPack(cmd *cobra.Command, args []string) error {
 func humanSize(bytes int64) string {
 	const kb = 1024
 	const mb = kb * 1024
+	const gb = mb * 1024
 	switch {
+	case bytes >= gb:
+		return fmt.Sprintf("%.1f GB", float64(bytes)/float64(gb))
 	case bytes >= mb:
 		return fmt.Sprintf("%.1f MB", float64(bytes)/float64(mb))
 	case bytes >= kb:
