@@ -76,9 +76,7 @@ func (t *Table) Render() string {
 	writeSep()
 	for _, row := range t.Rows {
 		styled := make([]string, len(row))
-		for i, cell := range row {
-			styled[i] = cell
-		}
+		copy(styled, row)
 		writeRow(styled, t.styles.TableRow)
 	}
 	b.WriteString("└")

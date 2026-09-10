@@ -81,7 +81,7 @@ func TestConnectorSignIn(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{"access_token":"tok","refresh_token":"ref","expires_in":3600,"user":{"id":"u1","email":"dev@example.com","name":"Dev","role":"Developer"},"mfaRequired":false}`))
+		_, _ = w.Write([]byte(`{"access_token":"tok","refresh_token":"ref","expires_in":3600,"user":{"id":"u1","email":"dev@example.com","name":"Dev","role":"Developer"},"mfaRequired":false}`))
 	}))
 	defer server.Close()
 
@@ -104,7 +104,7 @@ func TestConnectorSignIn(t *testing.T) {
 func TestConnectorSignInAuthError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte(`{"code":"INVALID_CREDENTIALS","message":"Identifiants invalides"}`))
+		_, _ = w.Write([]byte(`{"code":"INVALID_CREDENTIALS","message":"Identifiants invalides"}`))
 	}))
 	defer server.Close()
 

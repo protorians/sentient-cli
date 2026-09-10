@@ -216,8 +216,6 @@ type confirmModel struct {
 	defYes bool
 	result bool
 	cancel bool
-
-	choice string // "", "yes" or "no" once chosen
 }
 
 func (m confirmModel) Init() tea.Cmd {

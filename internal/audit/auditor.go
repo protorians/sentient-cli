@@ -110,7 +110,7 @@ func (a *Auditor) auditArchitecture(moduleDir, indexPath string, res *module.Res
 	// Check: components don't import services directly
 	componentsDir := filepath.Join(moduleDir, "components")
 	if pkg.DirExists(componentsDir) {
-		filepath.Walk(componentsDir, func(path string, info os.FileInfo, err error) error {
+		_ = filepath.Walk(componentsDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil || info.IsDir() {
 				return nil
 			}
@@ -136,7 +136,7 @@ func (a *Auditor) auditArchitecture(moduleDir, indexPath string, res *module.Res
 	// Check: services don't contain JSX
 	servicesDir := filepath.Join(moduleDir, "services")
 	if pkg.DirExists(servicesDir) {
-		filepath.Walk(servicesDir, func(path string, info os.FileInfo, err error) error {
+		_ = filepath.Walk(servicesDir, func(path string, info os.FileInfo, err error) error {
 			if err != nil || info.IsDir() || !strings.HasSuffix(path, ".ts") && !strings.HasSuffix(path, ".tsx") {
 				return nil
 			}
@@ -207,7 +207,7 @@ func (a *Auditor) auditAssets(name string, res *module.Result) {
 	if pkg.DirExists(assetsDir) {
 		// Assets directory exists — check for files
 		hasContent := false
-		filepath.Walk(assetsDir, func(path string, info os.FileInfo, err error) error {
+		_ = filepath.Walk(assetsDir, func(path string, info os.FileInfo, err error) error {
 			if err == nil && !info.IsDir() {
 				hasContent = true
 				return filepath.SkipDir

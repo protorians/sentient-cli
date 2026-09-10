@@ -13,12 +13,6 @@ import (
 )
 
 var (
-	cliVersion = "dev"
-	cliCommit  = "none"
-	cliDate    = "unknown"
-)
-
-var (
 	flagVerbose bool
 	flagNoColor bool
 )
@@ -69,10 +63,6 @@ func init() {
 // Execute runs the CLI. The version/commit/date build info comes from
 // ldflags (see .goreleaser.yaml).
 func Execute(version, commit, date string) {
-	cliVersion = version
-	cliCommit = commit
-	cliDate = date
-
 	// rootCmd.Version is read by Cobra at execution time, so it is computed
 	// here (not in init) to pick up the values injected via ldflags.
 	rootCmd.Version = fmt.Sprintf("v%s (%s/%s) %s", version, runtime.GOOS, runtime.GOARCH, commit)
