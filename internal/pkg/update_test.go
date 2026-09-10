@@ -88,8 +88,12 @@ func TestCheckForUpdateSkipsEmpty(t *testing.T) {
 func TestCheckForUpdateCached(t *testing.T) {
 	// Write a recent cache entry to skip the actual check
 	cache := cachePath()
-	os.MkdirAll(filepath.Dir(cache), 0o755)
-	os.WriteFile(cache, []byte(time.Now().Format(time.RFC3339)), 0o644)
+	if err := os.MkdirAll(filepath.Dir(cache), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cache, []byte(time.Now().Format(time.RFC3339)), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	defer os.Remove(cache)
 
 	msg := CheckForUpdate("0.1.0")
@@ -184,10 +188,14 @@ func TestCacheReadWrite(t *testing.T) {
 
 func TestCacheExpired(t *testing.T) {
 	cache := cachePath()
-	os.MkdirAll(filepath.Dir(cache), 0o755)
+	if err := os.MkdirAll(filepath.Dir(cache), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	// Write a cache from 2 days ago
 	old := time.Now().Add(-48 * time.Hour)
-	os.WriteFile(cache, []byte(old.Format(time.RFC3339)), 0o644)
+	if err := os.WriteFile(cache, []byte(old.Format(time.RFC3339)), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	defer os.Remove(cache)
 
 	ts, ok := readCache()

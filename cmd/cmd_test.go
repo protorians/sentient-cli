@@ -114,7 +114,9 @@ func TestResolveModuleSingle(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, config.ExternalModulesDir), 0o755)
 	creator := &module.Creator{Root: root}
-	creator.Create("solo-mod", "")
+	if _, err := creator.Create("solo-mod", ""); err != nil {
+		t.Fatal(err)
+	}
 
 	// With no args and single module, should auto-select
 	name, err := resolveModule(root, nil)

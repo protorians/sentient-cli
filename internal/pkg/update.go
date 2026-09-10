@@ -27,7 +27,7 @@ const CacheDuration = 24 * time.Hour
 // cachePath returns the path to the update check cache file.
 func cachePath() string {
 	dir := filepath.Join(os.TempDir(), "sentient-cli")
-	os.MkdirAll(dir, 0o755)
+	_ = os.MkdirAll(dir, 0o755)
 	return filepath.Join(dir, ".update-check")
 }
 
@@ -149,5 +149,5 @@ func readCache() (time.Time, bool) {
 }
 
 func writeCache(t time.Time) {
-	os.WriteFile(cachePath(), []byte(t.Format(time.RFC3339)), 0o644)
+	_ = os.WriteFile(cachePath(), []byte(t.Format(time.RFC3339)), 0o644)
 }
