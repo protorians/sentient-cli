@@ -49,7 +49,9 @@ func TestListModules(t *testing.T) {
 	}
 
 	// Create a dir without manifest (should be skipped)
-	os.MkdirAll(filepath.Join(extDir, "not-a-module"), 0o755)
+	if err := os.MkdirAll(filepath.Join(extDir, "not-a-module"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	names, err := listModules(root)
 	if err != nil {
@@ -66,7 +68,9 @@ func TestListModules(t *testing.T) {
 
 func TestListModulesEmpty(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, config.ExternalModulesDir), 0o755)
+	if err := os.MkdirAll(filepath.Join(root, config.ExternalModulesDir), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	names, err := listModules(root)
 	if err != nil {
@@ -87,7 +91,9 @@ func TestListModulesMissingDir(t *testing.T) {
 
 func TestResolveModuleWithArg(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, config.ExternalModulesDir), 0o755)
+	if err := os.MkdirAll(filepath.Join(root, config.ExternalModulesDir), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	creator := &module.Creator{Root: root}
 	if _, err := creator.Create("my-mod", ""); err != nil {
 		t.Fatal(err)
@@ -104,7 +110,9 @@ func TestResolveModuleWithArg(t *testing.T) {
 
 func TestResolveModuleWithArgNotFound(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, config.ExternalModulesDir), 0o755)
+	if err := os.MkdirAll(filepath.Join(root, config.ExternalModulesDir), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	_, err := resolveModule(root, []string{"nonexistent"})
 	if err == nil {
@@ -114,7 +122,9 @@ func TestResolveModuleWithArgNotFound(t *testing.T) {
 
 func TestResolveModuleSingle(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, config.ExternalModulesDir), 0o755)
+	if err := os.MkdirAll(filepath.Join(root, config.ExternalModulesDir), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	creator := &module.Creator{Root: root}
 	if _, err := creator.Create("solo-mod", ""); err != nil {
 		t.Fatal(err)
@@ -132,7 +142,9 @@ func TestResolveModuleSingle(t *testing.T) {
 
 func TestResolveModuleEmpty(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, config.ExternalModulesDir), 0o755)
+	if err := os.MkdirAll(filepath.Join(root, config.ExternalModulesDir), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	_, err := resolveModule(root, nil)
 	if err == nil {
@@ -143,7 +155,9 @@ func TestResolveModuleEmpty(t *testing.T) {
 func TestRequireProjectRoot(t *testing.T) {
 	root := t.TempDir()
 	// Create external_modules to make it a project root
-	os.MkdirAll(filepath.Join(root, config.ExternalModulesDir), 0o755)
+	if err := os.MkdirAll(filepath.Join(root, config.ExternalModulesDir), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	orig, _ := os.Getwd()
 	defer func() { _ = os.Chdir(orig) }()
