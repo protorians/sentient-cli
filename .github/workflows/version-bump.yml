@@ -1,0 +1,174 @@
+name: Version Bump
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump_type:
+        description: "Version bump type"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      dry_run:
+        description: "Dry run (preview only)"
+        required: false
+        type: boolean
+        default: false
+
+# Limiter aux branches de release uniquement
+# Le workflow doit être lancé manuellement depuis ces branches
+
+permissions:
+  contents: write
+
+jobs:
+  bump:
+    name: Bump version
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'alpha' || github.ref_name == 'beta' || github.ref_name == 'rc' || github.ref_name == 'release/latest'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Get current version
+        id: current
+        run: |
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "CURRENT=$TAG" >> $GITHUB_OUTPUT
+          echo "Current version: $TAG"
+
+      - name: Calculate new version
+        id: version
+        run: |
+          CURRENT="${{ steps.current.outputs.CURRENT }}"
+          CURRENT=${CURRENT#v}
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+
+          case "${{ inputs.bump_type }}" in
+            major)
+              MAJOR=$((MAJOR + 1))
+              MINOR=0
+              PATCH=0
+              ;;
+            minor)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            patch)
+              PATCH=$((PATCH + 1))
+              ;;
+          esac
+
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "NEW=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "NEW_V=v$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "Bumped: v$CURRENT -> v$NEW_VERSION"
+
+      - name: Generate changelog entry
+        id: changelog
+        run: |
+          PREV_TAG="${{ steps.current.outputs.CURRENT }}"
+          NEW_TAG="${{ steps.version.outputs.NEW_V }}"
+
+          {
+            echo "entry<<EOF"
+            echo "## [$NEW_TAG] - $(date +%Y-%m-%d)"
+            echo ""
+            echo "### Features"
+            git log --pretty=format:"- %s (%h)" --grep="^feat" ${PREV_TAG}..HEAD 2>/dev/null || echo "- No features"
+            echo ""
+            echo ""
+            echo "### Bug Fixes"
+            git log --pretty=format:"- %s (%h)" --grep="^fix" ${PREV_TAG}..HEAD 2>/dev/null || echo "- No bug fixes"
+            echo ""
+            echo ""
+            echo "### Other Changes"
+            git log --pretty=format:"- %s (%h)" --grep="^chore\|^refactor\|^perf\|^style\|^ci\|^build" ${PREV_TAG}..HEAD 2>/dev/null || echo "- Maintenance updates"
+            echo ""
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Update CHANGELOG.md
+        if: ${{ inputs.dry_run == false }}
+        run: |
+          NEW_TAG="${{ steps.version.outputs.NEW_V }}"
+          ENTRY="${{ steps.changelog.outputs.entry }}"
+
+          if [ ! -f CHANGELOG.md ]; then
+            echo "# Changelog" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "All notable changes to this project will be documented in this file." >> CHANGELOG.md
+            echo "The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)." >> CHANGELOG.md
+            echo "" >> CHANGELOG.md
+          fi
+
+          # Insert new entry after header
+          HEADER=$(head -4 CHANGELOG.md)
+          BODY=$(tail -n +5 CHANGELOG.md)
+          {
+            echo "$HEADER"
+            echo ""
+            echo "$ENTRY"
+            echo ""
+            echo "$BODY"
+          } > CHANGELOG.md.tmp
+          mv CHANGELOG.md.tmp CHANGELOG.md
+
+          echo "CHANGELOG.md updated"
+          cat CHANGELOG.md
+
+      - name: Update app.config.json version
+        if: ${{ inputs.dry_run == false }}
+        run: |
+          NEW="${{ steps.version.outputs.NEW }}"
+          if [ -f app.config.json ]; then
+            jq --arg v "$NEW" '.version = $v' app.config.json > app.config.json.tmp && mv app.config.json.tmp app.config.json
+            echo "Updated app.config.json version to $NEW"
+          fi
+
+      - name: Create commit and tag
+        if: ${{ inputs.dry_run == false }}
+        run: |
+          NEW_TAG="${{ steps.version.outputs.NEW_V }}"
+          NEW="${{ steps.version.outputs.NEW }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md app.config.json
+          git commit -m "chore: release v${NEW}"
+          git tag -a "$NEW_TAG" -m "Release $NEW_TAG"
+          git push origin main --tags
+
+          echo "Created tag: $NEW_TAG"
+
+      - name: Summary
+        run: |
+          echo "## Version Bump" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **From:** ${{ steps.current.outputs.CURRENT }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **To:** ${{ steps.version.outputs.NEW_V }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Type:** ${{ inputs.bump_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Dry run:** ${{ inputs.dry_run }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Changelog Entry" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          echo "${{ steps.changelog.outputs.entry }}" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Dry run output
+        if: ${{ inputs.dry_run == true }}
+        run: |
+          echo "=== DRY RUN ==="
+          echo "Would create tag: ${{ steps.version.outputs.NEW_V }}"
+          echo ""
+          echo "Changelog entry:"
+          echo "${{ steps.changelog.outputs.entry }}"

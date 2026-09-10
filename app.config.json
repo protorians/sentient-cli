@@ -1,0 +1,55 @@
+{
+  "$schema": "sentient.config.schema.json",
+  "version": "0.1.0",
+  "applications": {
+    "sentient-connect": {
+      "name": "Sentient Connect",
+      "description": "Plateforme de connexion et gestion des développeurs",
+      "domains": {
+        "production": "connect.sentient.protorians.com",
+        "staging": "connect-staging.sentient.protorians.com",
+        "development": "localhost:5020"
+      },
+      "api": {
+        "baseUrl": "https://connect.sentient.protorians.com",
+        "timeout": 30000
+      }
+    },
+    "sentient-cms": {
+      "name": "Sentient CMS",
+      "description": "Plateforme de gestion des contenus",
+      "domains": {
+        "production": "cms.sentient.protorians.com",
+        "staging": "cms-staging.sentient.protorians.com",
+        "development": "localhost:5030"
+      },
+      "api": {
+        "baseUrl": "https://cms.sentient.protorians.com",
+        "timeout": 30000
+      }
+    },
+    "sentient-auth": {
+      "name": "Sentient Auth",
+      "description": "Service d'authentification et de gestion des identités",
+      "domains": {
+        "production": "auth.sentient.protorians.com",
+        "staging": "auth-staging.sentient.protorians.com",
+        "development": "localhost:5050"
+      },
+      "api": {
+        "baseUrl": "https://auth.sentient.protorians.com",
+        "timeout": 30000
+      },
+      "oauth": {
+        "authorizationEndpoint": "/oauth/authorize",
+        "tokenEndpoint": "/oauth/token",
+        "revokeEndpoint": "/oauth/revoke"
+      },
+      "mfa": {
+        "challengeEndpoint": "/mfa/challenge",
+        "totpVerifyEndpoint": "/mfa/totp/verify",
+        "recoveryVerifyEndpoint": "/mfa/recovery/verify"
+      }
+    }
+  }
+}

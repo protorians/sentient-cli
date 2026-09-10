@@ -1,0 +1,4 @@
+@ECHO OFF
+SETLOCAL
+SET SCRIPT_DIR=%~dp0
+"%SCRIPT_DIR%sentient.exe" %*

@@ -1,0 +1,124 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Sentient Apps Configuration",
+  "description": "Configuration des domaines pour les applications Sentient",
+  "type": "object",
+  "required": ["version", "applications"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Version du schéma de configuration",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$"
+    },
+    "applications": {
+      "type": "object",
+      "description": "Applications Sentient configurées",
+      "patternProperties": {
+        "^[a-z][a-z0-9-]*$": {
+          "$ref": "#/definitions/application"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "definitions": {
+    "application": {
+      "type": "object",
+      "required": ["name", "description", "domains"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Nom affiché de l'application"
+        },
+        "description": {
+          "type": "string",
+          "description": "Description de l'application"
+        },
+        "domains": {
+          "type": "object",
+          "required": ["production"],
+          "properties": {
+            "production": {
+              "type": "string",
+              "description": "Domaine de production"
+            },
+            "staging": {
+              "type": "string",
+              "description": "Domaine de staging"
+            },
+            "development": {
+              "type": "string",
+              "description": "Domaine de développement local"
+            }
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "api": {
+          "$ref": "#/definitions/apiConfig"
+        },
+        "oauth": {
+          "$ref": "#/definitions/oauthConfig"
+        },
+        "mfa": {
+          "$ref": "#/definitions/mfaConfig"
+        }
+      },
+      "additionalProperties": false
+    },
+    "apiConfig": {
+      "type": "object",
+      "properties": {
+        "baseUrl": {
+          "type": "string",
+          "description": "URL de base de l'API",
+          "format": "uri"
+        },
+        "timeout": {
+          "type": "integer",
+          "description": "Timeout des requêtes en millisecondes",
+          "minimum": 1000,
+          "maximum": 120000
+        }
+      },
+      "additionalProperties": false
+    },
+    "oauthConfig": {
+      "type": "object",
+      "properties": {
+        "authorizationEndpoint": {
+          "type": "string",
+          "description": "Point d'entrée de l'autorisation OAuth"
+        },
+        "tokenEndpoint": {
+          "type": "string",
+          "description": "Point d'entrée du token OAuth"
+        },
+        "revokeEndpoint": {
+          "type": "string",
+          "description": "Point de révocation du token OAuth"
+        }
+      },
+      "additionalProperties": false
+    },
+    "mfaConfig": {
+      "type": "object",
+      "properties": {
+        "challengeEndpoint": {
+          "type": "string",
+          "description": "Point d'entrée du défi MFA"
+        },
+        "totpVerifyEndpoint": {
+          "type": "string",
+          "description": "Point de vérification TOTP"
+        },
+        "recoveryVerifyEndpoint": {
+          "type": "string",
+          "description": "Point de vérification backup code"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,147 @@
+#!/usr/bin/env node
+
+"use strict";
+
+const { execSync } = require("child_process");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const https = require("https");
+const http = require("http");
+
+const REPO = "protorians/sentient-cli";
+const BINARY_NAME = "sentient";
+
+const PLATFORM_MAP = {
+  darwin: { amd64: "darwin_amd64", arm64: "darwin_arm64" },
+  linux: { amd64: "linux_amd64", arm64: "linux_arm64" },
+  win32: { amd64: "windows_amd64" },
+};
+
+const ARCHIVE_EXT = {
+  darwin: "tar.gz",
+  linux: "tar.gz",
+  win32: "zip",
+};
+
+function getVersion() {
+  const pkg = require("../package.json");
+  return `v${pkg.version}`;
+}
+
+function getPlatform() {
+  const platform = os.platform();
+  const arch = os.arch();
+
+  if (!PLATFORM_MAP[platform]) {
+    throw new Error(`Unsupported platform: ${platform}`);
+  }
+  if (!PLATFORM_MAP[platform][arch]) {
+    throw new Error(`Unsupported architecture: ${platform}/${arch}`);
+  }
+
+  return {
+    platform,
+    arch,
+    triple: PLATFORM_MAP[platform][arch],
+    ext: ARCHIVE_EXT[platform],
+  };
+}
+
+function getDownloadUrl(version, platform) {
+  const archiveName = `${BINARY_NAME}-cli_${version}_${platform.triple}.${platform.ext}`;
+  return `https://github.com/${REPO}/releases/download/${version}/${archiveName}`;
+}
+
+function download(url) {
+  return new Promise((resolve, reject) => {
+    const mod = url.startsWith("https") ? https : http;
+    mod
+      .get(url, { headers: { "User-Agent": "sentient-cli-npm" } }, (res) => {
+        if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+          return download(res.headers.location).then(resolve, reject);
+        }
+        if (res.statusCode !== 200) {
+          reject(new Error(`Download failed with status ${res.statusCode}: ${url}`));
+          return;
+        }
+        const chunks = [];
+        res.on("data", (chunk) => chunks.push(chunk));
+        res.on("end", () => resolve(Buffer.concat(chunks)));
+        res.on("error", reject);
+      })
+      .on("error", reject);
+  });
+}
+
+async function extractArchive(archivePath, destDir, platform) {
+  if (platform.ext === "zip") {
+    execSync(`powershell -Command "Expand-Archive -Path '${archivePath}' -DestinationPath '${destDir}' -Force"`, {
+      stdio: "inherit",
+    });
+  } else {
+    execSync(`tar -xzf "${archivePath}" -C "${destDir}"`, { stdio: "inherit" });
+  }
+}
+
+async function main() {
+  const version = getVersion();
+  const platform = getPlatform();
+  const binDir = path.join(__dirname, "..", "bin");
+  const tmpDir = path.join(os.tmpdir(), `sentient-install-${Date.now()}`);
+
+  console.log(`Installing @sentients/cli ${version} for ${platform.triple}...`);
+
+  try {
+    fs.mkdirSync(tmpDir, { recursive: true });
+    fs.mkdirSync(binDir, { recursive: true });
+
+    const url = getDownloadUrl(version, platform);
+    console.log(`Downloading from ${url}...`);
+
+    const data = await download(url);
+    const archivePath = path.join(tmpDir, `release.${platform.ext}`);
+    fs.writeFileSync(archivePath, data);
+
+    console.log("Extracting...");
+    await extractArchive(archivePath, tmpDir, platform);
+
+    const binaryExt = platform.platform === "win32" ? ".exe" : "";
+    const extractedBinary = path.join(tmpDir, `${BINARY_NAME}${binaryExt}`);
+    const targetBinary = path.join(binDir, `${BINARY_NAME}${binaryExt}`);
+
+    if (fs.existsSync(extractedBinary)) {
+      fs.copyFileSync(extractedBinary, targetBinary);
+    } else {
+      // Try to find the binary in subdirectories
+      const files = fs.readdirSync(tmpDir, { recursive: true });
+      const found = files.find(
+        (f) => f.toString().endsWith(`${BINARY_NAME}${binaryExt}`) || f.toString().endsWith(`${BINARY_NAME}.exe`)
+      );
+      if (found) {
+        fs.copyFileSync(path.join(tmpDir, found.toString()), targetBinary);
+      } else {
+        throw new Error(`Binary ${BINARY_NAME} not found in archive`);
+      }
+    }
+
+    if (platform.platform !== "win32") {
+      fs.chmodSync(targetBinary, 0o755);
+    }
+
+    console.log(`@sentients/cli ${version} installed successfully.`);
+  } catch (err) {
+    console.error(`Failed to install @sentients/cli: ${err.message}`);
+    console.error("");
+    console.error("You can install the binary manually from:");
+    console.error(`  https://github.com/${REPO}/releases`);
+    process.exit(1);
+  } finally {
+    // Cleanup
+    try {
+      fs.rmSync(tmpDir, { recursive: true, force: true });
+    } catch {}
+  }
+}
+
+main();

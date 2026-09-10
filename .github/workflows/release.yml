@@ -1,0 +1,131 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+    branches: [alpha, beta, rc, release/latest]
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-latest
+    if: github.ref_name == 'alpha' || github.ref_name == 'beta' || github.ref_name == 'rc' || github.ref_name == 'release/latest'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          # Get previous tag
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD~1 2>/dev/null || echo "")
+          if [ -z "$PREV_TAG" ]; then
+            CHANGES=$(git log --pretty=format:"- %s (%h)" HEAD)
+          else
+            CHANGES=$(git log --pretty=format:"- %s (%h)" ${PREV_TAG}..HEAD)
+          fi
+          # Write to output using delimiter
+          echo "changes<<EOF" >> $GITHUB_OUTPUT
+          echo "$CHANGES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Run GoReleaser
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          distribution: goreleaser
+          version: "~> v2"
+          args: release --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload release assets to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/sentient-cli_*.tar.gz
+            dist/sentient-cli_*.zip
+            dist/checksums.txt
+          body: |
+            ## What's Changed
+
+            ${{ steps.changelog.outputs.changes }}
+
+            ## Installation
+
+            ### Binary downloads
+            Download the appropriate archive for your platform from the assets below.
+
+            ### Go
+            ```bash
+            go install github.com/protorians/sentient-cli@${{ github.ref_name }}
+            ```
+
+            ### npm / pnpm / yarn / bun
+            ```bash
+            npm install -g @sentients/cli
+            # or
+            pnpm add -g @sentients/cli
+            # or
+            yarn global add @sentients/cli
+            # or
+            bun add -g @sentients/cli
+            ```
+
+  publish-npm:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    needs: release
+    if: github.ref_name == 'alpha' || github.ref_name == 'beta' || github.ref_name == 'rc' || github.ref_name == 'release/latest'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Extract version from tag
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
+
+      - name: Update npm package version
+        working-directory: npm/sentient-cli
+        run: |
+          # Update version in package.json
+          jq --arg v "${{ steps.version.outputs.VERSION }}" '.version = $v' package.json > package.json.tmp && mv package.json.tmp package.json
+
+      - name: Publish to npm
+        working-directory: npm/sentient-cli
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+  post-release:
+    name: Post-release
+    runs-on: ubuntu-latest
+    needs: [release, publish-npm]
+    if: github.ref_name == 'alpha' || github.ref_name == 'beta' || github.ref_name == 'rc' || github.ref_name == 'release/latest'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Summary
+        run: |
+          echo "## Release ${{ github.ref_name }} completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- GitHub release with binaries: created" >> $GITHUB_STEP_SUMMARY
+          echo "- npm package @sentients/cli: published" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Install" >> $GITHUB_STEP_SUMMARY
+          echo '```bash' >> $GITHUB_STEP_SUMMARY
+          echo "npm install -g @sentients/cli" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY

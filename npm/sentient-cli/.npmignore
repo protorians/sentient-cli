@@ -1,0 +1,8 @@
+src/
+test/
+.git/
+.github/
+.goreleaser.yaml
+*.md
+!README.md
+!LICENSE

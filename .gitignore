@@ -1,0 +1,21 @@
+# Build artifacts
+/sentient
+/dist/
+npm/sentient-cli/bin/sentient
+npm/sentient-cli/bin/sentient.exe
+
+# Local build outputs
+.sentients/
+
+# Go
+*.test
+*.out
+coverage.*
+
+# Editor
+.idea/
+.vscode/
+.DS_Store
+
+# Logs
+*.log
