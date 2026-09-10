@@ -105,7 +105,9 @@ func TestCheckForUpdateNewerAvailable(t *testing.T) {
 	// Mock GitHub API returning a newer version
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(GitHubRelease{TagName: "v99.0.0"})
+		if err := json.NewEncoder(w).Encode(GitHubRelease{TagName: "v99.0.0"}); err != nil {
+			t.Error(err)
+		}
 	}))
 	defer server.Close()
 
@@ -129,7 +131,9 @@ func TestCheckForUpdateUpToDate(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(GitHubRelease{TagName: "v0.1.0"})
+		if err := json.NewEncoder(w).Encode(GitHubRelease{TagName: "v0.1.0"}); err != nil {
+			t.Error(err)
+		}
 	}))
 	defer server.Close()
 

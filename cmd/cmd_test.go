@@ -39,8 +39,12 @@ func TestListModules(t *testing.T) {
 
 	// Create two modules
 	creator := &module.Creator{Root: root}
-	creator.Create("alpha-mod", "")
-	creator.Create("beta-mod", "")
+	if _, err := creator.Create("alpha-mod", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := creator.Create("beta-mod", ""); err != nil {
+		t.Fatal(err)
+	}
 
 	// Create a dir without manifest (should be skipped)
 	os.MkdirAll(filepath.Join(extDir, "not-a-module"), 0o755)
@@ -83,7 +87,9 @@ func TestResolveModuleWithArg(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, config.ExternalModulesDir), 0o755)
 	creator := &module.Creator{Root: root}
-	creator.Create("my-mod", "")
+	if _, err := creator.Create("my-mod", ""); err != nil {
+		t.Fatal(err)
+	}
 
 	name, err := resolveModule(root, []string{"my-mod"})
 	if err != nil {
@@ -136,8 +142,10 @@ func TestRequireProjectRoot(t *testing.T) {
 	os.MkdirAll(filepath.Join(root, config.ExternalModulesDir), 0o755)
 
 	orig, _ := os.Getwd()
-	defer os.Chdir(orig)
-	os.Chdir(root)
+	defer func() { _ = os.Chdir(orig) }()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
 
 	found, err := requireProjectRoot()
 	if err != nil {
@@ -154,8 +162,10 @@ func TestRequireProjectRoot(t *testing.T) {
 func TestRequireProjectRootNotFound(t *testing.T) {
 	root := t.TempDir()
 	orig, _ := os.Getwd()
-	defer os.Chdir(orig)
-	os.Chdir(root)
+	defer func() { _ = os.Chdir(orig) }()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
 
 	_, err := requireProjectRoot()
 	if err == nil {
@@ -235,9 +245,8 @@ func TestSignCmdSubcommands(t *testing.T) {
 }
 
 func TestConnectCmdNoArgs(t *testing.T) {
-	if connectCmd.Args != nil {
-		// cobra.NoArgs returns a validator, not nil
-		// Just verify the command is configured
+	if connectCmd.Args == nil {
+		t.Error("connectCmd.Args doit être configuré (cobra.NoArgs)")
 	}
 	if connectCmd.Use != "connect" {
 		t.Errorf("connectCmd.Use = %q", connectCmd.Use)

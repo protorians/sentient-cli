@@ -23,7 +23,9 @@ func setupAuditProject(t *testing.T) string {
 	t.Helper()
 	root := t.TempDir()
 	// Create the external_modules dir (Creator does this, but be explicit)
-	os.MkdirAll(filepath.Join(root, config.ExternalModulesDir), 0o755)
+	if err := os.MkdirAll(filepath.Join(root, config.ExternalModulesDir), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	return root
 }
 
@@ -75,7 +77,9 @@ func TestAuditAllSkipsDirsWithoutManifest(t *testing.T) {
 	root := setupAuditProject(t)
 	createTestModule(t, root, "real-module")
 	// Create a dir without manifest.json
-	os.MkdirAll(filepath.Join(root, config.ExternalModulesDir, "empty-dir"), 0o755)
+	if err := os.MkdirAll(filepath.Join(root, config.ExternalModulesDir, "empty-dir"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	auditor := &Auditor{Root: root}
 	result, err := auditor.AuditModules("")
@@ -103,7 +107,9 @@ func TestAuditArchitectureComponentsImportServices(t *testing.T) {
 	// Write a component that imports from services
 	compDir := filepath.Join(root, config.ExternalModulesDir, "bad-module", "components")
 	compFile := filepath.Join(compDir, "Widget.tsx")
-	os.WriteFile(compFile, []byte(`import { fetchData } from "../services/api";`), 0o644)
+	if err := os.WriteFile(compFile, []byte(`import { fetchData } from "../services/api";`), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	auditor := &Auditor{Root: root}
 	result, err := auditor.AuditModules("bad-module")
@@ -130,10 +136,12 @@ func TestAuditArchitectureServicesJSX(t *testing.T) {
 	// Write a service file containing JSX
 	svcDir := filepath.Join(root, config.ExternalModulesDir, "jsx-service", "services")
 	svcFile := filepath.Join(svcDir, "api.ts")
-	os.WriteFile(svcFile, []byte(`// @jsx react
+	if err := os.WriteFile(svcFile, []byte(`// @jsx react
 const el = <div>hello</div>;
 // @tsx
-`), 0o644)
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	auditor := &Auditor{Root: root}
 	result, err := auditor.AuditModules("jsx-service")
@@ -164,7 +172,9 @@ func TestAuditRequirementsMissing(t *testing.T) {
 		t.Fatal(err)
 	}
 	manifest.Requirements = map[string]any{"nonexistent-module": true}
-	manifest.Save(manifestPath)
+	if err := manifest.Save(manifestPath); err != nil {
+		t.Fatal(err)
+	}
 
 	auditor := &Auditor{Root: root}
 	result, err := auditor.AuditModules("dependent")
@@ -196,7 +206,9 @@ func TestAuditRequirementsPresent(t *testing.T) {
 		t.Fatal(err)
 	}
 	manifest.Requirements = map[string]any{"dep-a": true}
-	manifest.Save(manifestPath)
+	if err := manifest.Save(manifestPath); err != nil {
+		t.Fatal(err)
+	}
 
 	auditor := &Auditor{Root: root}
 	result, err := auditor.AuditModules("dep-b")
@@ -221,7 +233,9 @@ func TestAuditAssetsEmpty(t *testing.T) {
 
 	// Create empty assets directory
 	assetsDir := config.ModuleAssetsDir(root, "with-assets")
-	os.MkdirAll(assetsDir, 0o755)
+	if err := os.MkdirAll(assetsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
 
 	auditor := &Auditor{Root: root}
 	result, err := auditor.AuditModules("with-assets")
@@ -249,8 +263,12 @@ func TestAuditAssetsWithContent(t *testing.T) {
 	createTestModule(t, root, "with-content")
 
 	assetsDir := config.ModuleAssetsDir(root, "with-content")
-	os.MkdirAll(assetsDir, 0o755)
-	pkg.WriteFile(filepath.Join(assetsDir, "icon.png"), []byte("fake-png"))
+	if err := os.MkdirAll(assetsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := pkg.WriteFile(filepath.Join(assetsDir, "icon.png"), []byte("fake-png")); err != nil {
+		t.Fatal(err)
+	}
 
 	auditor := &Auditor{Root: root}
 	result, err := auditor.AuditModules("with-content")
@@ -293,7 +311,9 @@ func TestAuditIndexAsyncRender(t *testing.T) {
 
 	// Overwrite index.tsx to remove async
 	indexPath := filepath.Join(root, config.ExternalModulesDir, "no-async", "index.tsx")
-	os.WriteFile(indexPath, []byte(`export default { name: "test" };`), 0o644)
+	if err := os.WriteFile(indexPath, []byte(`export default { name: "test" };`), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	auditor := &Auditor{Root: root}
 	result, err := auditor.AuditModules("no-async")

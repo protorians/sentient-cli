@@ -59,7 +59,9 @@ func TestDebugModuleInvalidManifest(t *testing.T) {
 	manifestPath := filepath.Join(root, config.ExternalModulesDir, "bad-mod", "manifest.json")
 	manifest, _ := module.LoadManifest(manifestPath)
 	manifest.Token = "invalid-token"
-	manifest.Save(manifestPath)
+	if err := manifest.Save(manifestPath); err != nil {
+		t.Fatal(err)
+	}
 
 	debugger := &Debugger{Root: root}
 	result, err := debugger.DebugModule("bad-mod")
