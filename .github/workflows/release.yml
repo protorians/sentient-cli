@@ -4,7 +4,6 @@ on:
   push:
     tags:
       - "v*"
-    branches: [alpha, beta, rc, release/latest]
 
 permissions:
   contents: write
@@ -14,7 +13,6 @@ jobs:
   release:
     name: Release
     runs-on: ubuntu-latest
-    if: github.ref_name == 'alpha' || github.ref_name == 'beta' || github.ref_name == 'rc' || github.ref_name == 'release/latest'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -85,7 +83,6 @@ jobs:
     name: Publish to npm
     runs-on: ubuntu-latest
     needs: release
-    if: github.ref_name == 'alpha' || github.ref_name == 'beta' || github.ref_name == 'rc' || github.ref_name == 'release/latest'
     steps:
       - uses: actions/checkout@v4
 
@@ -114,7 +111,6 @@ jobs:
     name: Post-release
     runs-on: ubuntu-latest
     needs: [release, publish-npm]
-    if: github.ref_name == 'alpha' || github.ref_name == 'beta' || github.ref_name == 'rc' || github.ref_name == 'release/latest'
     steps:
       - uses: actions/checkout@v4
 

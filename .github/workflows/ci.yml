@@ -7,7 +7,7 @@ on:
     branches: [alpha, beta, rc, main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   test:
@@ -46,9 +46,11 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+      - name: Run golangci-lint
+        run: golangci-lint run
 
   build:
     name: Build (${{ matrix.goos }}/${{ matrix.goarch }})
@@ -86,3 +88,116 @@ jobs:
           name: sentient-${{ matrix.goos }}-${{ matrix.goarch }}
           path: sentient-${{ matrix.goos }}-${{ matrix.goarch }}
           retention-days: 1
+
+  release:
+    name: Release
+    needs: [test, lint, build]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Get current version
+        id: current
+        run: |
+          TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "CURRENT=$TAG" >> $GITHUB_OUTPUT
+          echo "Current version: $TAG"
+
+      - name: Calculate new version
+        id: version
+        run: |
+          CURRENT="${{ steps.current.outputs.CURRENT }}"
+          CURRENT=${CURRENT#v}
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$CURRENT"
+          PATCH=$((PATCH + 1))
+
+          NEW_VERSION="$MAJOR.$MINOR.$PATCH"
+          echo "NEW=$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "NEW_V=v$NEW_VERSION" >> $GITHUB_OUTPUT
+          echo "Bumped: v$CURRENT -> v$NEW_VERSION"
+
+      - name: Generate changelog entry
+        id: changelog
+        run: |
+          PREV_TAG="${{ steps.current.outputs.CURRENT }}"
+          NEW_TAG="${{ steps.version.outputs.NEW_V }}"
+
+          {
+            echo "entry<<EOF"
+            echo "## [$NEW_TAG] - $(date +%Y-%m-%d)"
+            echo ""
+            echo "### Features"
+            git log --pretty=format:"- %s (%h)" --grep="^feat" ${PREV_TAG}..HEAD 2>/dev/null || echo "- No features"
+            echo ""
+            echo ""
+            echo "### Bug Fixes"
+            git log --pretty=format:"- %s (%h)" --grep="^fix" ${PREV_TAG}..HEAD 2>/dev/null || echo "- No bug fixes"
+            echo ""
+            echo ""
+            echo "### Other Changes"
+            git log --pretty=format:"- %s (%h)" --grep="^chore\|^refactor\|^perf\|^style\|^ci\|^build" ${PREV_TAG}..HEAD 2>/dev/null || echo "- Maintenance updates"
+            echo ""
+            echo "EOF"
+          } >> $GITHUB_OUTPUT
+
+      - name: Update CHANGELOG.md
+        run: |
+          NEW_TAG="${{ steps.version.outputs.NEW_V }}"
+          ENTRY="${{ steps.changelog.outputs.entry }}"
+
+          if [ ! -f CHANGELOG.md ]; then
+            echo "# Changelog" > CHANGELOG.md
+            echo "" >> CHANGELOG.md
+            echo "All notable changes to this project will be documented in this file." >> CHANGELOG.md
+            echo "The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)." >> CHANGELOG.md
+            echo "" >> CHANGELOG.md
+          fi
+
+          HEADER=$(head -4 CHANGELOG.md)
+          BODY=$(tail -n +5 CHANGELOG.md)
+          {
+            echo "$HEADER"
+            echo ""
+            echo "$ENTRY"
+            echo ""
+            echo "$BODY"
+          } > CHANGELOG.md.tmp
+          mv CHANGELOG.md.tmp CHANGELOG.md
+
+          echo "CHANGELOG.md updated"
+
+      - name: Update app.config.json version
+        run: |
+          NEW="${{ steps.version.outputs.NEW }}"
+          if [ -f app.config.json ]; then
+            jq --arg v "$NEW" '.version = $v' app.config.json > app.config.json.tmp && mv app.config.json.tmp app.config.json
+            echo "Updated app.config.json version to $NEW"
+          fi
+
+      - name: Create commit and tag
+        run: |
+          NEW_TAG="${{ steps.version.outputs.NEW_V }}"
+          NEW="${{ steps.version.outputs.NEW }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add CHANGELOG.md app.config.json
+          git commit -m "chore: release v${NEW} [skip ci]"
+          git tag -a "$NEW_TAG" -m "Release $NEW_TAG"
+          git push origin HEAD --tags
+
+          echo "Created tag: $NEW_TAG"
+
+      - name: Summary
+        run: |
+          echo "## Release ${{ steps.version.outputs.NEW_V }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version:** ${{ steps.version.outputs.NEW_V }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch:** ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "Tag pushed. Release workflow will be triggered automatically." >> $GITHUB_STEP_SUMMARY
