@@ -28,14 +28,17 @@ builds:
 
 archives:
   - id: packages
-    format: tar.gz
+    formats:
+      - tar.gz
     name_template: >-
       sentient-cli_{{ .Version }}_{{ .Os }}_{{ .Arch }}
     format_overrides:
       - goos: windows
-        format: zip
+        formats:
+          - zip
   - id: binaries
-    format: binary
+    formats:
+      - binary
     name_template: >-
       sentient_{{ .Version }}_{{ .Os }}_{{ .Arch }}
 
@@ -72,7 +75,7 @@ checksum:
   name_template: checksums.txt
 
 snapshot:
-  name_template: "{{ incpatch .Version }}-next"
+  version_template: "{{ incpatch .Version }}-next"
 
 changelog:
   sort: asc
