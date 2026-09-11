@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.0.5] - 2026-09-11
+
+### Features
+- feat: update `.goreleaser.yaml` to include binary releases alongside archives (7e9c786)
+
+### Bug Fixes
+
+
+### Other Changes
+
 ## [v0.0.4] - 2026-09-11
 
 ### Features
