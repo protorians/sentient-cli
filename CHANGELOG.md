@@ -3,6 +3,19 @@
 All notable changes to this project will be documented in this file.
 
 
+## [v0.0.7] - 2026-09-11
+
+### Features
+
+
+### Bug Fixes
+
+
+### Other Changes
+- chore(release): add `--no-push` option to `release.sh` for manual push control (70828b3)
+- chore(release): remove `[skip ci]` from commit message in `release.sh` (56ac90f)
+
+
 ## [v0.0.6] - 2026-09-11
 
 ### Features
