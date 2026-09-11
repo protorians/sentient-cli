@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+
+## [v0.0.6] - 2026-09-11
+
+### Features
+
+
+### Bug Fixes
+
+
+### Other Changes
+- refactor(ci): replace `version-bump.yml` with `release.sh` (f6171db)
+
 ## [v0.0.5] - 2026-09-11
 
 ### Features
