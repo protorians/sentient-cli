@@ -128,7 +128,6 @@ jobs:
           NEW_TAG="${{ steps.version.outputs.NEW_V }}"
 
           {
-            echo "entry<<EOF"
             echo "## [$NEW_TAG] - $(date +%Y-%m-%d)"
             echo ""
             echo "### Features"
@@ -142,13 +141,12 @@ jobs:
             echo "### Other Changes"
             git log --pretty=format:"- %s (%h)" --grep="^chore\|^refactor\|^perf\|^style\|^ci\|^build" ${PREV_TAG}..HEAD 2>/dev/null || echo "- Maintenance updates"
             echo ""
-            echo "EOF"
-          } >> $GITHUB_OUTPUT
+          } > "$RUNNER_TEMP/changelog-entry.md"
 
       - name: Update CHANGELOG.md
         run: |
           NEW_TAG="${{ steps.version.outputs.NEW_V }}"
-          ENTRY="${{ steps.changelog.outputs.entry }}"
+          ENTRY="$(cat "$RUNNER_TEMP/changelog-entry.md")"
 
           if [ ! -f CHANGELOG.md ]; then
             echo "# Changelog" > CHANGELOG.md
