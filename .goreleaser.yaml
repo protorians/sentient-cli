@@ -27,27 +27,32 @@ builds:
       - -X main.date={{.Date}}
 
 archives:
-  - format: tar.gz
+  - id: packages
+    format: tar.gz
     name_template: >-
       sentient-cli_{{ .Version }}_{{ .Os }}_{{ .Arch }}
     format_overrides:
       - goos: windows
         format: zip
+  - id: binaries
+    format: binary
+    name_template: >-
+      sentient_{{ .Version }}_{{ .Os }}_{{ .Arch }}
 
 release:
   name_template: "{{ .ProjectName }} v{{ .Version }}"
   header: |
     ## Download binaries
 
-    | Platform | Architecture | Archive |
-    |----------|--------------|---------|
-    | Linux | amd64 | `sentient-cli_{{ .Version }}_linux_amd64.tar.gz` |
-    | Linux | arm64 | `sentient-cli_{{ .Version }}_linux_arm64.tar.gz` |
-    | macOS | amd64 (Intel) | `sentient-cli_{{ .Version }}_darwin_amd64.tar.gz` |
-    | macOS | arm64 (Apple Silicon) | `sentient-cli_{{ .Version }}_darwin_arm64.tar.gz` |
-    | Windows | amd64 | `sentient-cli_{{ .Version }}_windows_amd64.zip` |
+    | Platform | Architecture | Archive | Binary |
+    |----------|--------------|---------|--------|
+    | Linux | amd64 | `sentient-cli_{{ .Version }}_linux_amd64.tar.gz` | `sentient_{{ .Version }}_linux_amd64` |
+    | Linux | arm64 | `sentient-cli_{{ .Version }}_linux_arm64.tar.gz` | `sentient_{{ .Version }}_linux_arm64` |
+    | macOS | amd64 (Intel) | `sentient-cli_{{ .Version }}_darwin_amd64.tar.gz` | `sentient_{{ .Version }}_darwin_amd64` |
+    | macOS | arm64 (Apple Silicon) | `sentient-cli_{{ .Version }}_darwin_arm64.tar.gz` | `sentient_{{ .Version }}_darwin_arm64` |
+    | Windows | amd64 | `sentient-cli_{{ .Version }}_windows_amd64.zip` | `sentient_{{ .Version }}_windows_amd64.exe` |
 
-    Checksums for all archives are in `checksums.txt`.
+    Checksums for all binaries and archives are in `checksums.txt`.
 
     ## Install
 
