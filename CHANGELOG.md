@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.0.4] - 2026-09-11
+
+### Features
+- feat: add comprehensive unit tests and enhance code consistency (39123df)
+
+### Bug Fixes
+- fix: add error handling for `os.MkdirAll` in `cmd_test.go` (95f0294)
+- fix: add error handling for filesystem operations in tests (b223a43)
+- fix: add missing error handling in file and directory operations (4043edd)
+- fix: add error handling to tests across multiple packages (9e3fe5d)
+
+### Other Changes
+- refactor: improve changelog entry generation in workflows (ef3dbf3)
+
 ## [v0.0.3] - 2026-09-10
 
 ### Features
