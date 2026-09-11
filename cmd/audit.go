@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -10,6 +11,30 @@ import (
 	"github.com/protorians/sentient-cli/internal/tui"
 	"github.com/spf13/cobra"
 )
+
+var auditOutput string
+
+func init() {
+	auditCmd.Flags().StringVar(&auditOutput, "output", "", "format de sortie (table | json)")
+	_ = auditCmd.RegisterFlagCompletionFunc("output", func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
+		return []string{"table", "json"}, cobra.ShellCompDirectiveDefault
+	})
+}
+
+// resolveAuditOutput maps the --output flag to the render mode, rejecting
+// unknown values (spec §5.10 : `--output json` est le seul format machine).
+func resolveAuditOutput() (string, error) {
+	switch auditOutput {
+	case "", "table":
+		return "table", nil
+	case "json":
+		return "json", nil
+	default:
+		return "", pkg.NewErrorWithFix("Audit",
+			fmt.Sprintf("format de sortie inconnu %q", auditOutput),
+			"Formats valides : table, json.", pkg.ExitError)
+	}
+}
 
 var auditCmd = &cobra.Command{
 	Use:   "audit [module]",
@@ -44,7 +69,21 @@ func runAudit(cmd *cobra.Command, args []string) error {
 		return pkg.NewError("Audit", err.Error(), pkg.ExitError)
 	}
 
+	if auditOutput == "json" {
+		return printAuditJSON(result)
+	}
+
 	printAuditResult(result)
+	return nil
+}
+
+// printAuditJSON exports the audit report as JSON (spec §5.10).
+func printAuditJSON(result *audit.AuditResult) error {
+	data, err := json.MarshalIndent(result, "", "  ")
+	if err != nil {
+		return pkg.NewError("Audit", "sérialisation JSON impossible : "+err.Error(), pkg.ExitError)
+	}
+	fmt.Println(string(data))
 	return nil
 }
 

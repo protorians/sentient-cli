@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/protorians/sentient-cli/internal/audit"
 	"github.com/protorians/sentient-cli/internal/auth"
 	"github.com/protorians/sentient-cli/internal/config"
 	"github.com/protorians/sentient-cli/internal/module"
@@ -57,6 +58,36 @@ func runPublish(cmd *cobra.Command, args []string) error {
 	manifest, err := module.LoadManifest(manifestPath)
 	if err != nil {
 		return pkg.NewError("Manifest", err.Error(), pkg.ExitManifest)
+	}
+
+	// Auto-audit before publishing (spec §5.6) — configurable via
+	// `[publish] auto_audit` in `.sentient-cli.toml` (default: true).
+	cfg, err := config.Load(config.ConfigPath(root))
+	if err != nil {
+		debugf("lecture de la configuration : %v", err)
+	}
+	if cfg.Publish.AutoAudit {
+		auditRes, aerr := (&audit.Auditor{Root: root}).AuditModules(name)
+		if aerr != nil {
+			return pkg.NewError("Audit", aerr.Error(), pkg.ExitError)
+		}
+		if errs := auditRes.TotalErrors(); errs > 0 {
+			printAuditResult(auditRes)
+			if !tui.IsInteractive() {
+				return pkg.NewErrorWithFix("Audit",
+					fmt.Sprintf("le module %q contient %d erreur(s) d'audit", name, errs),
+					"Corrigez les erreurs puis réessayez, ou exécutez 'sentient audit "+name+"'.",
+					pkg.ExitError)
+			}
+			continueAnyway, cerr := tui.Confirm("Publier malgré les erreurs d'audit", false)
+			if cerr != nil {
+				return cerr
+			}
+			if !continueAnyway {
+				return nil
+			}
+			warn("Publication malgré les erreurs d'audit")
+		}
 	}
 
 	// Check if metadata is incomplete and prompt

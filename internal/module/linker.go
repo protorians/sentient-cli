@@ -3,6 +3,7 @@ package module
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
 
 	"github.com/protorians/sentient-cli/internal/config"
 	"github.com/protorians/sentient-cli/internal/pkg"
@@ -10,9 +11,9 @@ import (
 
 // LinkResult summarises a link operation.
 type LinkResult struct {
-	LocalModule  string
-	RemoteToken  string
-	RemoteName   string
+	LocalModule   string
+	RemoteToken   string
+	RemoteName    string
 	RemoteVersion string
 }
 
@@ -69,8 +70,10 @@ func (l *Linker) Unlink(name string) error {
 	return nil
 }
 
-// LinkedModules returns modules that have a remote token in their manifest.
-// Used by unlink to list only linked modules.
+// LinkedModules returns the modules whose manifest carries a remote store
+// token. A module is considered "linked" when its token isn't a locally
+// generated UUID (local UUIDs are produced by `create` and `unlink`, whereas
+// remote store tokens use a different format, e.g. "m_xxx").
 func (l *Linker) LinkedModules() ([]string, error) {
 	dir := filepath.Join(l.Root, config.ExternalModulesDir)
 	if !pkg.DirExists(dir) {
@@ -88,14 +91,12 @@ func (l *Linker) LinkedModules() ([]string, error) {
 		if err != nil {
 			continue
 		}
-		// A module is "linked" if its token doesn't look like a UUID
-		// (remote tokens use a different format, e.g. "m_xxx")
-		// For simplicity, we consider any module with a non-empty token as potentially linked.
-		// The cmd layer will verify with the API.
-		_ = m
+		if m.Token == "" || pkg.IsUUID(m.Token) {
+			continue // not linked to a remote store module
+		}
 		moduleDir := filepath.Dir(manifestPath)
 		linked = append(linked, filepath.Base(moduleDir))
 	}
-
+	sort.Strings(linked)
 	return linked, nil
 }

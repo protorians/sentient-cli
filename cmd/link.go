@@ -126,21 +126,39 @@ func runUnlink(cmd *cobra.Command) error {
 
 	linker := &module.Linker{Root: root}
 
-	// Find linked modules
-	modules, err := linker.LinkedModules()
+	// Find linked modules (spec §5.8: list local modules with a remote token)
+	linked, err := linker.LinkedModules()
 	if err != nil {
 		return err
 	}
-	if len(modules) == 0 {
+	if len(linked) == 0 {
 		return pkg.NewError("Module",
-			"aucun module trouvé dans external_modules",
+			"aucun module lié à un module distant trouvé dans external_modules",
 			pkg.ExitModuleNotFound)
 	}
 
-	// Select module to unlink
-	localName, err := resolveModule(root, nil)
-	if err != nil {
-		return err
+	// Select module to unlink from the linked list
+	localName := linked[0]
+	if len(linked) > 1 {
+		if !tui.IsInteractive() {
+			return pkg.NewError("Sélection",
+				"plusieurs modules liés, fournissez le nom du module en argument",
+				pkg.ExitError)
+		}
+		selected, err := tui.Select("Sélectionner le module à délier", linked)
+		if err != nil {
+			return err
+		}
+		localName = selected
+	}
+
+	// Show the current remote binding
+	if m, err := module.LoadManifest(config.ManifestPath(root, localName)); err == nil && m.Token != "" {
+		remote := fmt.Sprintf("%s (v%s)", m.Name, m.Version)
+		if m.Name == "" {
+			remote = m.Version
+		}
+		fmt.Printf("  Actuellement lié à : %s %s\n", m.Token, remote)
 	}
 
 	// Confirm

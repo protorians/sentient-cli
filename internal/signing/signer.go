@@ -14,10 +14,10 @@ import (
 
 // SignResult describes a created signature.
 type SignResult struct {
-	Module    string
-	Version   string
-	Archive   string
-	Signature string
+	Module      string
+	Version     string
+	Archive     string
+	Signature   string
 	Fingerprint string
 }
 

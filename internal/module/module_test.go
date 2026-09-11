@@ -159,3 +159,39 @@ func TestValidateModuleMissingToken(t *testing.T) {
 		t.Error("token invalide doit produire une erreur")
 	}
 }
+
+func TestLinkedModulesFiltersUnlinked(t *testing.T) {
+	root, creator := setupProject(t)
+	if _, err := creator.Create("mod-a", ""); err != nil {
+		t.Fatalf("Create mod-a: %v", err)
+	}
+	if _, err := creator.Create("mod-b", ""); err != nil {
+		t.Fatalf("Create mod-b: %v", err)
+	}
+
+	linker := &Linker{Root: root}
+	if _, err := linker.Link("mod-a", "m_abc123def456"); err != nil {
+		t.Fatalf("Link: %v", err)
+	}
+
+	// Seul mod-a (token distant) doit être listé comme lié.
+	linked, err := linker.LinkedModules()
+	if err != nil {
+		t.Fatalf("LinkedModules: %v", err)
+	}
+	if len(linked) != 1 || linked[0] != "mod-a" {
+		t.Errorf("seul mod-a doit être lié, obtenu: %v", linked)
+	}
+
+	// Unlink rétablit un token UUID local → aucun module lié restant.
+	if err := linker.Unlink("mod-a"); err != nil {
+		t.Fatalf("Unlink: %v", err)
+	}
+	linked, err = linker.LinkedModules()
+	if err != nil {
+		t.Fatalf("LinkedModules: %v", err)
+	}
+	if len(linked) != 0 {
+		t.Errorf("aucun module ne doit être lié après unlink, obtenu: %v", linked)
+	}
+}
