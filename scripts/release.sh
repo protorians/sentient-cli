@@ -120,7 +120,7 @@ if [ -f "$CONFIG_FILE" ]; then
 fi
 
 git add "$CHANGELOG_FILE" "$CONFIG_FILE"
-git commit -m "chore: release v${new} [skip ci]"
+git commit -m "chore: release v${new}"
 git tag -a "$new_tag" -m "Release $new_tag"
 
 echo ""
