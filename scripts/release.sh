@@ -3,15 +3,13 @@
 # release.sh — Bump la version, génère le changelog et crée le tag localement.
 #
 # Usage:
-#   ./scripts/release.sh [patch|minor|major] [--dry-run]
+#   ./scripts/release.sh [patch|minor|major] [--dry-run] [--no-push]
 #
 # Exemples:
-#   ./scripts/release.sh              # bump patch
-#   ./scripts/release.sh minor        # bump minor
+#   ./scripts/release.sh              # bump patch puis push branche + tag
+#   ./scripts/release.sh minor        # bump minor puis push branche + tag
 #   ./scripts/release.sh major --dry-run   # préview sans rien modifier
-#
-# Ensuite:
-#   git push origin HEAD --tags       # déclenche le workflow release
+#   ./scripts/release.sh patch --no-push   # bump sans push (push manuel)
 
 set -euo pipefail
 
@@ -23,11 +21,13 @@ CONFIG_FILE="app.config.json"
 
 BUMP_TYPE="patch"
 DRY_RUN=false
+NO_PUSH=false
 for arg in "$@"; do
   case "$arg" in
     --dry-run) DRY_RUN=true ;;
+    --no-push) NO_PUSH=true ;;
     patch|minor|major) BUMP_TYPE="$arg" ;;
-    *) echo "Usage: $0 [patch|minor|major] [--dry-run]" >&2; exit 1 ;;
+    *) echo "Usage: $0 [patch|minor|major] [--dry-run] [--no-push]" >&2; exit 1 ;;
   esac
 done
 
@@ -125,6 +125,17 @@ git tag -a "$new_tag" -m "Release $new_tag"
 
 echo ""
 echo "Done: $new_tag created locally."
+
+if [ "$NO_PUSH" = true ]; then
+  echo ""
+  echo "Push not run (--no-push). To trigger release:"
+  echo "  git push origin HEAD --tags"
+  exit 0
+fi
+
 echo ""
-echo "Push to trigger release:"
-echo "  git push origin HEAD --tags"
+echo "Pushing branch and tag to origin..."
+git push origin HEAD --tags
+
+echo ""
+echo "Release $new_tag pushed. The release workflow is now running."
