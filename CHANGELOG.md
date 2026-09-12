@@ -3,6 +3,15 @@
 All notable changes to this project will be documented in this file.
 
 
+## [v0.0.8] - 2026-09-12
+
+### Changed
+- **Commande renommée `sentient` → `sentients`** : le binaire et toutes les invocations de la CLI utilisent désormais `sentients` (Cobra, GoReleaser, binaire npm, CI).
+
+### Docs
+- Mise à jour de la documentation et de la spécification (`README.md`, `docs/specs/sentient.md`, `docs/rapport-implementation.md`) avec la commande `sentients`.
+
+
 ## [v0.0.7] - 2026-09-11
 
 ### Features
