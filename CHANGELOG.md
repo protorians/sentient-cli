@@ -3,6 +3,24 @@
 All notable changes to this project will be documented in this file.
 
 
+## [v0.0.9] - 2026-09-12
+
+### Changed
+- **Alignement API sur les contrats documentés** (`sentient-workspace`) :
+  - Enveloppe Raiton `{ message, data, statusCode }` décodée dans `internal/pkg/http.go` (rétro-compat `{code,message}`) ;
+  - Auth **à jeton unique** : `POST /api/auth/sign-in` → `{user, token, device}`, `/api/auth/logout`,
+    `/api/auth/sessions/refresh` ; le `refresh_token` est retiré du modèle de session ;
+  - MFA **gardée** : `POST /api/mfa/challenge` puis `/api/mfa/totp/verify` ou `/api/mfa/recovery/verify`,
+    exécutés avec la session après sign-in ;
+  - Store sur l'API **developer-store** : `ListModules`/`GetModule`/`UpdateModule`/`Publish` passent par
+    `/api/developer-store/modules/**` — la publication suit le pipeline produit → version → artefact
+    (checksum SHA-256 hex + signature Ed25519 base64 du `.smp.sig` + poids).
+
+### Docs
+- `docs/specs/sentient.md` §5.3/5.4/5.6/5.7, §6.3 et §8 (endpoints + DTOs) réalignés sur les contrats documentés ;
+- `docs/rapport-implementation.md` (# connect/disconnect/publish/link) mis à jour.
+
+
 ## [v0.0.8] - 2026-09-12
 
 ### Changed
