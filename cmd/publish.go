@@ -2,7 +2,9 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net/http"
 	"strings"
 
 	"github.com/protorians/sentient-cli/internal/audit"
@@ -172,16 +174,81 @@ func runPublish(cmd *cobra.Command, args []string) error {
 		return pkg.NewError("Pack", err.Error(), pkg.ExitBuild)
 	}
 
-	// Publish
 	client := store.NewClient()
 	client.SetToken(sess.AccessToken)
 
-	pubResult, err := tui.RunWithSpinner("Publication sur le store…", func() (*store.PublishResponse, error) {
-		return client.Publish(context.Background(), packResult.Path, manifest)
-	})
+	// Publish, resolving SemVer conflicts by offering a patch bump on retry
+	// (spec §5.6 step 6).
+	var pubResult *store.PublishResponse
+	for attempt := 0; attempt < maxPublishAttempts; attempt++ {
+		pubResult, err = tui.RunWithSpinner("Publication sur le store…", func() (*store.PublishResponse, error) {
+			return client.Publish(context.Background(), packResult.Path, manifest)
+		})
+		if err == nil {
+			break
+		}
+		if !isVersionConflict(err) {
+			return pkg.NewErrorWithFix("Publication", err.Error(),
+				"Vérifiez votre connexion et réessayez.", pkg.ExitPublish)
+		}
+		if !tui.IsInteractive() {
+			return pkg.NewErrorWithFix("Publication", err.Error(),
+				"Après bump de version manuel (manifest.json), réessayez ou exécutez 'sentients pack "+name+"'.",
+				pkg.ExitPublish)
+		}
+
+		warn("Une version identique existe déjà sur le store : " + err.Error())
+		bump, cerr := tui.Confirm("Incrémenter la version (patch) et republier", true)
+		if cerr != nil {
+			return cerr
+		}
+		if !bump {
+			return nil
+		}
+		newVersion, verr := pkg.BumpPatch(manifest.Version)
+		if verr != nil {
+			return pkg.NewError("Manifest", verr.Error(), pkg.ExitManifest)
+		}
+		manifest.Version = newVersion
+		if err := manifest.Save(manifestPath); err != nil {
+			return pkg.NewError("Manifest", err.Error(), pkg.ExitManifest)
+		}
+		fmt.Printf("  %s : %s\n", s.Muted.Render("Nouvelle version"), s.Info.Render(newVersion))
+
+		packResult, err = tui.RunWithSpinner("Rebuild de l'archive…", func() (*module.PackResult, error) {
+			return packer.Pack(name)
+		})
+		if err != nil {
+			return pkg.NewError("Pack", err.Error(), pkg.ExitBuild)
+		}
+	}
 	if err != nil {
 		return pkg.NewErrorWithFix("Publication", err.Error(),
 			"Vérifiez votre connexion et réessayez.", pkg.ExitPublish)
+	}
+
+	// Sync the local manifest with the published artifact (spec §5.6 step 7):
+// the resolved remote product id (token) and the published version.
+	updated := false
+	if pubResult.Token != "" && pubResult.Token != manifest.Token {
+		manifest.Token = pubResult.Token
+		updated = true
+	}
+	if pubResult.Version != "" && pubResult.Version != manifest.Version {
+		manifest.Version = pubResult.Version
+		updated = true
+	}
+	if updated {
+		if err := manifest.Save(manifestPath); err != nil {
+			warn("Mise à jour du manifest impossible : " + err.Error())
+		}
+	}
+
+	// Best-effort remote metadata sync via PUT /api/developer-store/modules/:id.
+	if pubResult.Token != "" {
+		if err := client.UpdateModule(context.Background(), pubResult.Token, manifest); err != nil {
+			debugf("synchronisation des métadonnées distantes : %v", err)
+		}
 	}
 
 	fmt.Println()
@@ -191,4 +258,23 @@ func runPublish(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  %s : %s\n", s.Muted.Render("URL"), s.Info.Render(pubResult.URL))
 	}
 	return nil
+}
+
+// maxPublishAttempts bounds the conflict-retry loop.
+const maxPublishAttempts = 5
+
+// isVersionConflict reports whether a publish error is a « version already
+// published » conflict (HTTP 409 or an identifiable message).
+func isVersionConflict(err error) bool {
+	var apiErr *pkg.APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	if apiErr.StatusCode == http.StatusConflict {
+		return true
+	}
+	lower := strings.ToLower(apiErr.Message)
+	return strings.Contains(lower, "version") &&
+		(strings.Contains(lower, "existe") || strings.Contains(lower, "déjà") ||
+			strings.Contains(lower, "conflict") || strings.Contains(lower, "conflit"))
 }

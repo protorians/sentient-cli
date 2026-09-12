@@ -12,6 +12,7 @@ const (
 	SentientConfigName  = "sentient.config.toml"
 	ExternalModulesDir  = "external_modules"
 	PublicAssetsDir     = "public/assets"
+	SentientDir         = ".sentients"
 	SentientBuildsDir   = ".sentients/build"
 	ManifestFileName    = "manifest.json"
 	ModuleEntryFileName = "index.tsx"

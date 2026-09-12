@@ -49,7 +49,7 @@ func (c *Creator) Create(name, description string) (*CreateResult, error) {
 		return nil, err
 	}
 
-	if err := pkg.WriteString(filepath.Join(moduleDir, config.ModuleEntryFileName), indexTemplate(name)); err != nil {
+	if err := pkg.WriteString(filepath.Join(moduleDir, config.ModuleEntryFileName), indexTemplate(name, description)); err != nil {
 		return nil, err
 	}
 	if err := pkg.WriteString(filepath.Join(moduleDir, "README.md"), readmeTemplate(name, description)); err != nil {
@@ -69,12 +69,12 @@ func (c *Creator) Create(name, description string) (*CreateResult, error) {
 	}, nil
 }
 
-func indexTemplate(name string) string {
+func indexTemplate(name, description string) string {
 	return fmt.Sprintf(`import type { ModuleDeclarationInterface } from "@/modules";
 
 const declaration: ModuleDeclarationInterface = {
   name: "%s",
-  description: "",
+  description: "%s",
   render: async () => {
     const mod = await import("./components");
     return mod.default;
@@ -82,7 +82,7 @@ const declaration: ModuleDeclarationInterface = {
 };
 
 export default declaration;
-`, displayName(name))
+`, displayName(name), description)
 }
 
 func readmeTemplate(name, description string) string {

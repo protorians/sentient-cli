@@ -105,7 +105,14 @@ func runLink(cmd *cobra.Command) error {
 
 	// Link
 	linker := &module.Linker{Root: root}
-	result, err := linker.Link(localName, remote.Token)
+	result, err := linker.Link(localName, module.RemoteInfo{
+		Token:         remote.Token,
+		Name:          remote.Name,
+		Description:   remote.Description,
+		Version:       remote.Version,
+		PublisherID:   remote.Publisher.ID,
+		PublisherName: remote.Publisher.Name,
+	})
 	if err != nil {
 		return pkg.NewError("Liaison", err.Error(), pkg.ExitError)
 	}

@@ -184,9 +184,10 @@ func Select(title string, items []string) (string, error) {
 	delegate.SetSpacing(0)
 	delegate.ShowDescription = false
 	delegate.Styles = list.NewDefaultItemStyles()
-	delegate.Styles.SelectedTitle = lipgloss.NewStyle().Foreground(lipgloss.Color("#A855F7")).Bold(true)
+	s := NewStyles()
+	delegate.Styles.SelectedTitle = lipgloss.NewStyle().Foreground(lipgloss.Color(s.palette.accent)).Bold(true)
 	delegate.Styles.SelectedDesc = delegate.Styles.SelectedTitle
-	delegate.Styles.NormalTitle = lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF"))
+	delegate.Styles.NormalTitle = lipgloss.NewStyle()
 	delegate.Styles.NormalDesc = delegate.Styles.NormalTitle
 
 	l := list.New(raw, delegate, min(maxWidth+12, 80), len(items)+2)

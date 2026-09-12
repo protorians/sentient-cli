@@ -1,13 +1,31 @@
 package module
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 
 	"github.com/protorians/sentient-cli/internal/config"
 	"github.com/protorians/sentient-cli/internal/pkg"
 )
+
+// linksFileName is the project-local state recording module ↔ remote store
+// associations. It makes `LinkedModules` independent from the remote token
+// string format (UUID ⇒ local was fragile).
+const linksFileName = "links.json"
+
+// RemoteInfo carries the remote store metadata to merge into a local manifest
+// when linking (spec §5.7 step 6: fill in absent remote metadata).
+type RemoteInfo struct {
+	Token         string
+	Name          string
+	Description   string
+	Version       string
+	PublisherID   string
+	PublisherName string
+}
 
 // LinkResult summarises a link operation.
 type LinkResult struct {
@@ -22,8 +40,9 @@ type Linker struct {
 	Root string
 }
 
-// Link associates a local module with a remote token.
-func (l *Linker) Link(name, remoteToken string) (*LinkResult, error) {
+// Link associates a local module with a remote store module. The remote
+// metadata is merged into the local manifest for fields that are still empty.
+func (l *Linker) Link(name string, remote RemoteInfo) (*LinkResult, error) {
 	moduleDir := filepath.Join(l.Root, config.ExternalModulesDir, name)
 	if !pkg.DirExists(moduleDir) {
 		return nil, fmt.Errorf("le module %q n'existe pas dans %s", name, config.ExternalModulesDir)
@@ -35,20 +54,50 @@ func (l *Linker) Link(name, remoteToken string) (*LinkResult, error) {
 		return nil, err
 	}
 
-	m.Token = remoteToken
+	// Merge remote metadata into the locally absent fields (spec §5.7 step 6).
+	m.Token = remote.Token
+	if m.Name == "" {
+		m.Name = remote.Name
+	}
+	if m.Description == "" {
+		m.Description = remote.Description
+	}
+	if m.Publisher.ID == "" {
+		m.Publisher.ID = remote.PublisherID
+	}
+	if m.Publisher.Name == "" {
+		m.Publisher.Name = remote.PublisherName
+	}
 	if err := m.Save(manifestPath); err != nil {
 		return nil, fmt.Errorf("mise à jour du manifest impossible : %w", err)
 	}
 
+	// Record the association so LinkedModules does not depend on the token
+	// string format.
+	state := l.loadLinks()
+	state.Modules[name] = remote.Token
+	if err := l.saveLinks(state); err != nil {
+		return nil, fmt.Errorf("enregistrement de la liaison impossible : %w", err)
+	}
+
+	remoteName := remote.Name
+	if remoteName == "" {
+		remoteName = m.Name
+	}
+	remoteVersion := remote.Version
+	if remoteVersion == "" {
+		remoteVersion = m.Version
+	}
+
 	return &LinkResult{
 		LocalModule:   name,
-		RemoteToken:   remoteToken,
-		RemoteName:    m.Name,
-		RemoteVersion: m.Version,
+		RemoteToken:   remote.Token,
+		RemoteName:    remoteName,
+		RemoteVersion: remoteVersion,
 	}, nil
 }
 
-// Unlink removes the remote token association from a local module.
+// Unlink removes the remote store association from a local module.
 func (l *Linker) Unlink(name string) error {
 	moduleDir := filepath.Join(l.Root, config.ExternalModulesDir, name)
 	if !pkg.DirExists(moduleDir) {
@@ -61,42 +110,97 @@ func (l *Linker) Unlink(name string) error {
 		return err
 	}
 
-	// Generate a new local UUID token (de-link from remote)
+	// Generate a new local UUID token (de-link from remote).
 	m.Token = pkg.NewUUID()
 	if err := m.Save(manifestPath); err != nil {
 		return fmt.Errorf("mise à jour du manifest impossible : %w", err)
 	}
 
+	state := l.loadLinks()
+	delete(state.Modules, name)
+	if err := l.saveLinks(state); err != nil {
+		return fmt.Errorf("enregistrement de la déliaison impossible : %w", err)
+	}
+
 	return nil
 }
 
-// LinkedModules returns the modules whose manifest carries a remote store
-// token. A module is considered "linked" when its token isn't a locally
-// generated UUID (local UUIDs are produced by `create` and `unlink`, whereas
-// remote store tokens use a different format, e.g. "m_xxx").
+// LinkedModules returns the modules currently linked to a remote store module.
+// The links state file is authoritative; manifests carrying a non-UUID token
+// are merged in as a migration bridge for projects linked before this state
+// was introduced.
 func (l *Linker) LinkedModules() ([]string, error) {
 	dir := filepath.Join(l.Root, config.ExternalModulesDir)
 	if !pkg.DirExists(dir) {
 		return nil, fmt.Errorf("le dossier %q est introuvable", config.ExternalModulesDir)
 	}
 
+	linked := map[string]bool{}
+	state := l.loadLinks()
+	for name, token := range state.Modules {
+		if token == "" || !pkg.DirExists(filepath.Join(dir, name)) {
+			continue
+		}
+		linked[name] = true
+	}
+
 	entries, err := filepath.Glob(filepath.Join(dir, "*", config.ManifestFileName))
 	if err != nil {
 		return nil, fmt.Errorf("recherche de manifest impossible : %w", err)
 	}
-
-	var linked []string
 	for _, manifestPath := range entries {
+		moduleName := filepath.Base(filepath.Dir(manifestPath))
+		if linked[moduleName] {
+			continue
+		}
 		m, err := LoadManifest(manifestPath)
 		if err != nil {
 			continue
 		}
 		if m.Token == "" || pkg.IsUUID(m.Token) {
-			continue // not linked to a remote store module
+			continue // locally generated token, not linked to a remote store module
 		}
-		moduleDir := filepath.Dir(manifestPath)
-		linked = append(linked, filepath.Base(moduleDir))
+		linked[moduleName] = true
 	}
-	sort.Strings(linked)
-	return linked, nil
+
+	names := make([]string, 0, len(linked))
+	for name := range linked {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names, nil
+}
+
+// linksPath returns the project-local links state file path.
+func (l *Linker) linksPath() string {
+	return filepath.Join(l.Root, config.SentientDir, linksFileName)
+}
+
+// linksState maps local module names to remote store tokens.
+type linksState struct {
+	Modules map[string]string `json:"modules"`
+}
+
+// loadLinks reads the links state file, tolerating absence.
+func (l *Linker) loadLinks() linksState {
+	var state linksState
+	data, err := os.ReadFile(l.linksPath())
+	if err == nil {
+		if json.Unmarshal(data, &state) != nil {
+			state = linksState{}
+		}
+	}
+	if state.Modules == nil {
+		state.Modules = map[string]string{}
+	}
+	return state
+}
+
+// saveLinks writes the links state file, creating `.sentients/` if needed.
+func (l *Linker) saveLinks(state linksState) error {
+	data, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+	return pkg.WriteFile(l.linksPath(), data)
 }

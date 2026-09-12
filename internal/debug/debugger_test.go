@@ -120,6 +120,76 @@ func TestDebugAllSkipsNonModules(t *testing.T) {
 	}
 }
 
+func TestFindBuildCommandPrefersModulePackage(t *testing.T) {
+	root := setupDebugProject(t)
+	createTestModule(t, root, "my-module")
+	moduleDir := filepath.Join(root, config.ExternalModulesDir, "my-module")
+
+	// Root defines only a "build:prod" script; the module defines "build".
+	rootPkg := filepath.Join(root, "package.json")
+	if err := os.WriteFile(rootPkg, []byte(`{"scripts":{"build:prod":"tsc"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	modPkg := filepath.Join(moduleDir, "package.json")
+	if err := os.WriteFile(modPkg, []byte(`{"scripts":{"build":"tsc -p ."}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	d := &Debugger{Root: root}
+	build := d.findBuildCommand("npm", moduleDir)
+	if build == nil {
+		t.Fatal("un script build doit être trouvé dans le package.json du module")
+	}
+	if build.dir != moduleDir {
+		t.Errorf("le script doit être exécuté depuis le dossier du module, obtenu %s", build.dir)
+	}
+	if len(build.cmd) != 3 || build.cmd[0] != "npm" || build.cmd[2] != "build" {
+		t.Errorf("commande inattendue : %v", build.cmd)
+	}
+}
+
+func TestFindBuildCommandRootFallback(t *testing.T) {
+	root := setupDebugProject(t)
+	createTestModule(t, root, "my-module")
+	moduleDir := filepath.Join(root, config.ExternalModulesDir, "my-module")
+
+	// Only the project root exposes a "debug" script.
+	if err := os.WriteFile(filepath.Join(root, "package.json"), []byte(`{"scripts":{"debug":"vite --debug"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	d := &Debugger{Root: root}
+	build := d.findBuildCommand("bun", moduleDir)
+	if build == nil {
+		t.Fatal("le script debug racine doit être trouvé en repli")
+	}
+	if build.dir != root {
+		t.Errorf("le script racine doit être exécuté depuis la racine, obtenu %s", build.dir)
+	}
+	if build.cmd[2] != "debug" {
+		t.Errorf("script attendu : debug, obtenu %v", build.cmd)
+	}
+}
+
+func TestFindBuildCommandNoSubstringFalsePositive(t *testing.T) {
+	root := setupDebugProject(t)
+	createTestModule(t, root, "my-module")
+	moduleDir := filepath.Join(root, config.ExternalModulesDir, "my-module")
+
+	// Only "build:prod" exists — plain "build" must NOT match.
+	if err := os.WriteFile(filepath.Join(root, "package.json"), []byte(`{"scripts":{"build:prod":"tsc"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(moduleDir, "package.json"), []byte(`{"scripts":{"buildx":"echo"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	d := &Debugger{Root: root}
+	if build := d.findBuildCommand("npm", moduleDir); build != nil {
+		t.Errorf("aucun script exact debug/dev/build ne doit matcher, obtenu %v", build.cmd)
+	}
+}
+
 func TestFormatDebugLogs(t *testing.T) {
 	logs := []string{"Module chargé", "Aucune erreur"}
 	formatted := FormatDebugLogs("my-mod", logs)

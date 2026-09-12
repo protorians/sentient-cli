@@ -17,21 +17,28 @@ const (
 	prefix      = "sentient-cli."
 
 	KeyAccessToken  = prefix + "access_token"
-	KeyRefreshToken = prefix + "refresh_token"
+	KeyMFAToken     = prefix + "mfa_token"
+	KeyDevice       = prefix + "device"
 	KeyExpiresAt    = prefix + "expires_at"
 	KeyUserID       = prefix + "user_id"
 	KeyUserEmail    = prefix + "user_email"
 	KeyMFASecret    = prefix + "mfa_secret"
+	// KeyRefreshTokenLegacy was dropped from the session model (single-token
+	// sessions). Kept in AllKeys so stale keychain entries are purged on
+	// disconnect.
+	KeyRefreshTokenLegacy = prefix + "refresh_token"
 )
 
 // AllKeys lists every credential key used by the CLI.
 var AllKeys = []string{
 	KeyAccessToken,
-	KeyRefreshToken,
+	KeyMFAToken,
+	KeyDevice,
 	KeyExpiresAt,
 	KeyUserID,
 	KeyUserEmail,
 	KeyMFASecret,
+	KeyRefreshTokenLegacy,
 }
 
 // Store is a secure credential storage.
@@ -50,32 +57,68 @@ type Store interface {
 type keyringStore struct{}
 
 // fallbackStore persists credentials in an AES-256-GCM encrypted file, used
-// when no system keychain is available (see risk R-002).
+// when no system keychain is available (see risk R-002). The AES key is
+// derived (PBKDF2) from the per-user machine secret, never a hard-coded
+// passphrase.
 type fallbackStore struct {
-	path string
-	key  string
-	mu   sync.Mutex
+	path   string
+	secret []byte
+	mu     sync.Mutex
 }
 
-// NewStore returns the appropriate credential store for the platform.
-// When the system keychain is unavailable, it falls back to an encrypted
-// file under the user home directory.
+// NewStore returns the appropriate credential store for the platform. The
+// system keychain is used when reachable; otherwise the CLI transparently
+// falls back to a vault file encrypted with the per-user machine secret.
 func NewStore() Store {
-	return &keyringStore{}
+	if keychainAvailable() {
+		return &keyringStore{}
+	}
+	return newFallbackStore(defaultFallbackPath())
 }
 
-// NewStoreVolatile returns a store forced to use the in-memory/fallback
-// backend regardless of keychain availability (useful when running without
-// a system keyring, e.g. headless or tests).
+// NewStoreVolatile returns an isolated fallback store backed by a temporary
+// file with a fresh random secret. Used by tests and headless runs that must
+// not touch either the system keychain or the user data directory.
 func NewStoreVolatile() Store {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		home = os.TempDir()
-	}
 	return &fallbackStore{
-		path: filepath.Join(home, ".sentient-cli", "credentials.enc"),
-		key:  "sentient-cli-fallback-v1",
+		path:   filepath.Join(os.TempDir(), "sentient-cli-test-"+pkg.NewUUID()+".enc"),
+		secret: mustRandomSecret(),
 	}
+}
+
+// newFallbackStore builds a fallback store on the given vault path using the
+// per-user machine secret.
+func newFallbackStore(path string) *fallbackStore {
+	secret, err := pkg.MachineSecret()
+	if err != nil {
+		secret = mustRandomSecret()
+	}
+	return &fallbackStore{path: path, secret: secret}
+}
+
+func defaultFallbackPath() string {
+	dir, err := pkg.DataDir()
+	if err != nil {
+		return filepath.Join(os.TempDir(), "sentient-cli-credentials.enc")
+	}
+	return filepath.Join(dir, "credentials.enc")
+}
+
+func mustRandomSecret() []byte {
+	secret, err := pkg.NewRandomKey()
+	if err != nil {
+		panic(err) // crypto/rand failure: nothing secure can be written in this state
+	}
+	return secret
+}
+
+// keychainAvailable probes the OS keychain with a harmless read of a key that
+// cannot exist. A backend that answers ErrNotFound is usable; any other error
+// (missing Secret Service, no Credential Manager, headless session…) means the
+// CLI must fall back to the encrypted file store.
+func keychainAvailable() bool {
+	_, err := keyring.Get(ServiceName, "__sentient-cli_probe__")
+	return err == nil || isKeyringNotExist(err)
 }
 
 func (s *keyringStore) Get(key string) (string, error) {
@@ -174,7 +217,7 @@ func (s *fallbackStore) load() (map[string]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("lecture du fichier de credentials impossible : %w", err)
 	}
-	plain, err := pkg.DecryptAESGCM(s.key, ciphertext)
+	plain, err := pkg.DecryptVault(s.secret, ciphertext)
 	if err != nil {
 		return nil, err
 	}
@@ -190,7 +233,7 @@ func (s *fallbackStore) save(data map[string]string) error {
 	if err != nil {
 		return fmt.Errorf("sérialisation des credentials impossible : %w", err)
 	}
-	ciphertext, err := pkg.EncryptAESGCM(s.key, plain)
+	ciphertext, err := pkg.EncryptVault(s.secret, plain)
 	if err != nil {
 		return err
 	}

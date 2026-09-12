@@ -4,12 +4,19 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/protorians/sentient-cli/internal/config"
 	"github.com/protorians/sentient-cli/internal/module"
 	"github.com/protorians/sentient-cli/internal/pkg"
 )
+
+// jsxTagRE heuristically recognises JSX elements without a full TS/JSX parser:
+// closing tags (`</div>`), custom (capitalised) components (`<Foo …/>`) and
+// lowercase native elements carrying attributes (`<div className=…/>`). It
+// deliberately ignores type arguments such as `Array<string>`.
+var jsxTagRE = regexp.MustCompile(`(?:</[A-Z][A-Za-z0-9._-]*>|</[a-z][a-z0-9_-]*>|<[A-Z][A-Za-z0-9._-]*(?:\s[^<>]*?)?/?>|<[a-z][a-z0-9_-]*(?:\s+[a-zA-Z-]+=)[^<>]*?/?>)`)
 
 // Auditor runs all conformance checks on a module.
 type Auditor struct {
@@ -144,9 +151,7 @@ func (a *Auditor) auditArchitecture(moduleDir, indexPath string, res *module.Res
 			if err != nil {
 				return nil
 			}
-			content := string(data)
-			if strings.Contains(content, "<") && strings.Contains(content, ">") &&
-				(strings.Contains(content, "jsx") || strings.Contains(content, "tsx")) {
+			if jsxTagRE.Match(data) {
 				rel, _ := filepath.Rel(moduleDir, path)
 				res.Findings = append(res.Findings, module.Finding{
 					Category: "Clean Architecture",
@@ -186,18 +191,14 @@ func (a *Auditor) auditDependencies(name string, res *module.Result) {
 			fmt.Sprintf("requirement %q existe", req), module.LevelError)
 	}
 
-	// Check for duplicate dependencies
-	depKeys := make(map[string]bool)
-	for k, v := range manifest.Dependencies {
-		if depKeys[k] {
-			res.Findings = append(res.Findings, module.Finding{
-				Category: "dependencies",
-				Rule:     "doublon",
-				Severity: module.LevelWarning,
-				Message:  fmt.Sprintf("dépendance en double : %s (%s)", k, v),
-			})
-		}
-		depKeys[k] = true
+	// Check that listed npm dependencies are installed (spec rule
+	// « Toutes les dépendances npm sont installées »). The previous duplicate
+	// check iterated a map — duplicate keys are impossible by construction, so
+	// it could never trigger. Installed-ness is the real, verifiable rule.
+	for dep := range manifest.Dependencies {
+		depDir := filepath.Join(a.Root, "node_modules", filepath.FromSlash(dep))
+		addLevel(res, "dependencies", dep, pkg.DirExists(depDir),
+			fmt.Sprintf("dépendance %q installée", dep), module.LevelError)
 	}
 }
 

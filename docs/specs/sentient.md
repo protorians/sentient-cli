@@ -448,16 +448,16 @@ manière sécurisée.
    - Si oui → afficher le statut et demander si reconnexion souhaitée
 2. **Demander l'email** via input Bubbletea
 3. **Demander le mot de passe** via input Bubbletea (masqué)
-4. **Envoyer les credentials** à l'API `sentient-connect` (`POST /auth/sign-in`)
+4. **Envoyer les credentials** à l'API `sentient-connect` (`POST /api/auth/sign-in`)
 5. **Vérifier la réponse** :
-   - **Succès sans MFA** → stocker le token Bearer + refresh token dans le keychain
+   - **Succès sans MFA** → stocker le token Bearer + device dans le keychain
    - **MFA requis** (`mfaRequired: true`) → enchaîner sur l'étape MFA
-6. **MFA** (si requis) :
-   - Afficher les facteurs disponibles (TOTP, backup codes)
+6. **MFA** (si requis, endpoints gardés → le token de session doit être attaché en Bearer) :
+   - Interroger les facteurs disponibles → `POST /api/mfa/challenge`
    - Selon le facteur choisi :
-     - **TOTP** : demander le code 6 chiffres → `POST /mfa/totp/verify`
-     - **Backup code** : demander le code → `POST /mfa/recovery/verify`
-   - Valider → stocker les credentials
+     - **TOTP** : demander le code 6 chiffres → `POST /api/mfa/totp/verify`
+     - **Backup code** : demander le code → `POST /api/mfa/recovery/verify`
+   - Valider → stocker le `mfa_token` retourné
 7. **Afficher le résumé** : connecté en tant que `email`, rôle, organisation
 
 #### Stockage des credentials
@@ -465,7 +465,8 @@ manière sécurisée.
 | Donnée | Emplacement | Chiffrement |
 |--------|-------------|-------------|
 | `access_token` | Keychain (`sentient-cli.access_token`) | Oui (keychain natif) |
-| `refresh_token` | Keychain (`sentient-cli.refresh_token`) | Oui (keychain natif) |
+| `mfa_token` | Keychain (`sentient-cli.mfa_token`) | Oui (keychain natif) |
+| `device` | Keychain (`sentient-cli.device`) | Oui (keychain natif) |
 | `expires_at` | Keychain (`sentient-cli.expires_at`) | Non (timestamp) |
 | `user.email` | Keychain (`sentient-cli.user_email`) | Non |
 | `user.id` | Keychain (`sentient-cli.user_id`) | Non |
@@ -474,7 +475,7 @@ manière sécurisée.
 #### Sécurité
 
 - **Plus jamais** de credentials en clair sur disque
-- Les tokens sont automatiquement rafraîchis via `refresh_token` si expirés
+- Session **à jeton unique** : le token Bearer est rafraîchi via `POST /api/auth/sessions/refresh` si expiré
 - Le `mfa_secret` (si TOTP enrollment local) est chiffré dans le keychain
 - Après 5 échecs de connexion → temporaire (5 min) avec message clair
 
@@ -509,12 +510,13 @@ Supprimer toutes les credentials stockées et déconnecter le développeur.
 2. **Demander confirmation** ( Bubbletea confirm )
 3. **Supprimer** toutes les entrées du keychain :
    - `sentient-cli.access_token`
-   - `sentient-cli.refresh_token`
+   - `sentient-cli.mfa_token`
+   - `sentient-cli.device`
    - `sentient-cli.expires_at`
    - `sentient-cli.user_email`
    - `sentient-cli.user_id`
    - `sentient-cli.mfa_secret`
-4. **Invalider le token** côté serveur (`POST /auth/sign-out`)
+4. **Invalider le token** côté serveur (`POST /api/auth/logout`, best-effort)
 5. **Afficher confirmation**
 
 #### Sortie TUI
@@ -607,15 +609,18 @@ Construire et publier un module dans le store via l'API `sentient-connect`.
      - `publisher.name` : nom affiché du développeur
    - Proposer de mettre à jour le `manifest.json` local
 4. **Exécuter `sentients pack`** en interne (construction de l'archive)
-5. **Envoyer l'archive** à l'API :
-   - `POST /store/modules/publish`
+5. **Envoyer l'archive** à l'API developer-store (les 3 étapes de §21 connect) :
+   - Résoudre le **produit module** : réutiliser le produit lié (`manifest.token`) sinon le créer
+     (`POST /api/developer-store/modules` — `{name, slug, type, primaryCategory}`)
+   - Créer la **version** (`POST /api/developer-store/modules/:id/versions` — `{versionString, buildNumber, …}`)
+   - **Déclarer l'artefact** (`POST /api/developer-store/modules/:id/versions/:versionId/artifact` —
+     `manifest` JSON, `checksum` SHA-256 hex, `signature` base64 (.smp.sig), `size`)
    - Headers : `Authorization: Bearer <token>`
-   - Body : multipart/form-data avec l'archive `.smp` + métadonnées JSON
 6. **Gérer la réponse** :
    - **Succès** → afficher l'URL du module dans le store
    - **Conflit** (version existante) → demander si bump de version souhaité
    - **Erreur** → afficher le message d'erreur détaillé
-7. **Mettre à jour le `manifest.json`** local avec la version publiée
+7. **Mettre à jour le `manifest.json`** local avec la version publiée et le token distant résolu
 
 #### Contraintes
 
@@ -658,11 +663,11 @@ Lier un module créé dans `sentient-connect` avec le module en local.
 1. **Vérifier l'authentification** (sinon → `sentients connect`)
 2. **Lister les modules locaux** dans `external_modules/` via sélecteur Bubbletea
 3. **Lister les modules en ligne** via API :
-   - `GET /store/modules` (modules du développeur)
+   - `GET /api/developer-store/modules` (modules du développeur)
    - Afficher dans un tableau Bubbletea avec : nom, version, statut
 4. **Demander le token du module en ligne** via input Bubbletea
 5. **Valider le token** via API :
-   - `GET /store/modules/<token>`
+   - `GET /api/developer-store/modules/<id>` (id du produit module)
    - Vérifier que le module existe et appartient au développeur
 6. **Mettre à jour le `manifest.json` local** :
    - Ajouter/mettre à jour le champ `token` avec le token distant
@@ -1071,8 +1076,9 @@ Le `manifest.json` est le fichier de métadonnées de chaque module. Voir la sec
 
 ```
 sentient-cli/
-├── access_token      # Token Bearer JWT
-├── refresh_token     # Token de rafraîchissement
+├── access_token      # Token Bearer JWT (session à jeton unique)
+├── mfa_token         # Token MFA court (après vérification TOTP/recovery)
+├── device            # ID du device (session connectée)
 ├── expires_at        # Timestamp d'expiration
 ├── user_id           # ID du développeur
 ├── user_email        # Email du développeur
@@ -1136,46 +1142,65 @@ sentient-cli-signing/
 
 ## 8. Communication API
 
+> Les endpoints sont servis par `sentient-api-core` (auth/MFA) et `sentient-api-connect`
+> (developer-store), derrière un préfixe global **`/api`** et une enveloppe Raiton unique :
+> `{ message, data, statusCode }` (`RaitonResponses(message, data, statusCode)`).
+> Les erreurs reprennent l'enveloppe (`message`), le code HTTP et un `code` optionnel.
+
 ### 8.1 Endpoints `sentient-connect`
 
 | Méthode | Chemin | Description |
 |---------|--------|-------------|
-| POST | `/auth/sign-in` | Authentification (email + password) |
-| POST | `/auth/sign-out` | Déconnexion (invalidation token) |
-| POST | `/auth/refresh` | Rafraîchissement du token |
-| POST | `/mfa/challenge` | Déclenchement du défi MFA |
-| POST | `/mfa/totp/verify` | Vérification code TOTP |
-| POST | `/mfa/recovery/verify` | Vérification backup code |
-| GET | `/store/modules` | Liste des modules du développeur |
-| GET | `/store/modules/:token` | Détail d'un module |
-| POST | `/store/modules/publish` | Publication d'un module |
-| PUT | `/store/modules/:token` | Mise à jour des métadonnées |
+| POST | `/api/auth/sign-in` | Authentification (email + password) → `{user, token, device}` |
+| POST | `/api/auth/logout` | Déconnexion (invalidation token, gardé) |
+| POST | `/api/auth/sessions/refresh` | Rafraîchissement du token (gardé) |
+| POST | `/api/mfa/challenge` | Défi MFA (gardé) → `{mfaRequired, challenge?, factors}` |
+| POST | `/api/mfa/totp/verify` | Vérification code TOTP (gardé) → `{mfaVerified, mfaToken?}` |
+| POST | `/api/mfa/recovery/verify` | Vérification backup code (gardé) |
+| GET | `/api/developer-store/modules` | Liste des produits module du développeur |
+| GET | `/api/developer-store/modules/:id` | Détail d'un produit module (id) |
+| POST | `/api/developer-store/modules` | Création d'un produit module |
+| PUT | `/api/developer-store/modules/:id` | Mise à jour des métadonnées du produit |
+| POST | `/api/developer-store/modules/:id/versions` | Création d'une version |
+| POST | `/api/developer-store/modules/:id/versions/:versionId/artifact` | Déclaration de l'artefact |
 
 ### 8.2 DTOs
 
-#### POST `/auth/sign-in` — `SignInRequest`
+#### POST `/api/auth/sign-in` — `SignInRequest`
 
 | Champ | Type | Requis | Description |
 |-------|------|--------|-------------|
 | `email` | string | oui | Email du développeur |
 | `password` | string | oui | Mot de passe |
 
-#### Réponse `SignInResponse` (succès)
+#### Réponse `SignInResponse` (succès — `SignInVm`)
 
 | Champ | Type | Description |
 |-------|------|-------------|
-| `access_token` | string | JWT Bearer |
-| `refresh_token` | string | Token de rafraîchissement |
-| `expires_in` | number | Durée de vie en secondes |
-| `user` | object | `{ id, email, name, role }` |
-| `mfaRequired` | boolean | Si MFA requis |
+| `user` | object | `{ id, username, email?, avatar?, status, roles[] }` |
+| `token` | string | JWT Bearer unique (session 24 h, TTL estimé côté CLI) |
+| `device` | object | `{ id, name }` |
 
-#### POST `/store/modules/publish` — `PublishRequest`
+Pas de `expires_in` ni de `refresh_token` : la CLI estime l'expiration à 24 h et
+rafraîchit via `POST /api/auth/sessions/refresh`.
+
+#### POST `/api/developer-store/modules` — `CreateModuleProductDto`
 
 | Champ | Type | Requis | Description |
 |-------|------|--------|-------------|
-| `archive` | binary | oui | Fichier `.smp` (multipart) |
+| `name` | string | oui | Nom affiché (2-120) |
+| `slug` | string | oui | Identifiant unique du développeur (kebab-case) |
+| `type` | enum | oui | `DeveloperModuleType` (`WEB_APP_REMOTE` par défaut, …) |
+| `primaryCategory` | string | oui | Catégorie storefront |
+
+#### POST `/api/developer-store/modules/:id/versions/:versionId/artifact` — `DeclareArtifactRequest`
+
+| Champ | Type | Requis | Description |
+|-------|------|--------|-------------|
 | `manifest` | JSON | oui | Contenu du `manifest.json` |
+| `checksum` | string | oui | SHA-256 hex de l'archive `.smp` |
+| `signature` | string | non | Signature Ed25519 (base64 du `.smp.sig`) |
+| `size` | number | oui | Taille de l'archive en octets |
 
 ---
 

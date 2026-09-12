@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/protorians/sentient-cli/internal/pkg"
 )
 
 // setupProject creates a project root with one module via the Creator.
@@ -40,6 +42,21 @@ func TestCreateModuleStructure(t *testing.T) {
 		if _, err := os.Stat(p); err != nil {
 			t.Errorf("fichier attendu manquant : %s (%v)", p, err)
 		}
+	}
+}
+
+func TestCreateModuleDescriptionInIndex(t *testing.T) {
+	root, creator := setupProject(t)
+	if _, err := creator.Create("blog-manager", "Gestion de blog et d'articles"); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(root, "external_modules", "blog-manager", "index.tsx"))
+	if err != nil {
+		t.Fatalf("lecture index.tsx: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, `description: "Gestion de blog et d'articles"`) {
+		t.Errorf("index.tsx doit contenir la description fournie:\n%s", content)
 	}
 }
 
@@ -170,7 +187,7 @@ func TestLinkedModulesFiltersUnlinked(t *testing.T) {
 	}
 
 	linker := &Linker{Root: root}
-	if _, err := linker.Link("mod-a", "m_abc123def456"); err != nil {
+	if _, err := linker.Link("mod-a", RemoteInfo{Token: "m_abc123def456"}); err != nil {
 		t.Fatalf("Link: %v", err)
 	}
 
@@ -184,6 +201,108 @@ func TestLinkedModulesFiltersUnlinked(t *testing.T) {
 	}
 
 	// Unlink rétablit un token UUID local → aucun module lié restant.
+	if err := linker.Unlink("mod-a"); err != nil {
+		t.Fatalf("Unlink: %v", err)
+	}
+	linked, err = linker.LinkedModules()
+	if err != nil {
+		t.Fatalf("LinkedModules: %v", err)
+	}
+	if len(linked) != 0 {
+		t.Errorf("aucun module ne doit être lié après unlink, obtenu: %v", linked)
+	}
+}
+
+func TestLinkMergesAbsentRemoteMetadata(t *testing.T) {
+	root, creator := setupProject(t)
+	if _, err := creator.Create("blog-manager", ""); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+
+	linker := &Linker{Root: root}
+	result, err := linker.Link("blog-manager", RemoteInfo{
+		Token:         "m_abc123def456",
+		Name:          "Blog Manager",
+		Description:   "Gestion de blog et d'articles",
+		Version:       "1.2.0",
+		PublisherID:   "dev_42",
+		PublisherName: "Jane Doe",
+	})
+	if err != nil {
+		t.Fatalf("Link: %v", err)
+	}
+
+	// Result carries the remote identity.
+	if result.RemoteToken != "m_abc123def456" ||
+		result.RemoteName != "Blog Manager" ||
+		result.RemoteVersion != "1.2.0" {
+		t.Errorf("LinkResult incohérent: %+v", result)
+	}
+
+	// Manifest enriched with remote metadata (fields absent after create).
+	m, err := LoadManifest(filepath.Join(root, "external_modules", "blog-manager", "manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Token != "m_abc123def456" {
+		t.Errorf("Token = %q, want m_abc123def456", m.Token)
+	}
+	if m.Name != "Blog Manager" {
+		t.Errorf("Name = %q, want Blog Manager", m.Name)
+	}
+	if m.Description != "Gestion de blog et d'articles" {
+		t.Errorf("Description = %q, want Gestion de blog et d'articles", m.Description)
+	}
+	if m.Publisher.ID != "dev_42" || m.Publisher.Name != "Jane Doe" {
+		t.Errorf("Publisher = %+v, want dev_42/Jane Doe", m.Publisher)
+	}
+
+	// Existing local metadata must NOT be overwritten.
+	if _, err := linker.Link("blog-manager", RemoteInfo{
+		Token:       "m_new_token",
+		Name:        "Nom Distant",
+		Description: "Description distante",
+		Version:     "2.0.0",
+	}); err != nil {
+		t.Fatalf("second Link: %v", err)
+	}
+	m, err = LoadManifest(filepath.Join(root, "external_modules", "blog-manager", "manifest.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.Token != "m_new_token" {
+		t.Errorf("Token = %q, want m_new_token (toujours remis à jour)", m.Token)
+	}
+	if m.Name != "Blog Manager" {
+		t.Errorf("Name = %q, la valeur locale ne doit pas être écrasée", m.Name)
+	}
+	if m.Description != "Gestion de blog et d'articles" {
+		t.Errorf("Description = %q, la valeur locale ne doit pas être écrasée", m.Description)
+	}
+}
+
+func TestLinkedModulesStateFileIgnoresTokenFormat(t *testing.T) {
+	root, creator := setupProject(t)
+	if _, err := creator.Create("mod-a", ""); err != nil {
+		t.Fatalf("Create mod-a: %v", err)
+	}
+
+	// A remote token that happens to match the UUID format must still be
+	// recognised as "linked" once recorded in the state file.
+	remoteToken := pkg.NewUUID()
+	linker := &Linker{Root: root}
+	if _, err := linker.Link("mod-a", RemoteInfo{Token: remoteToken}); err != nil {
+		t.Fatalf("Link: %v", err)
+	}
+
+	linked, err := linker.LinkedModules()
+	if err != nil {
+		t.Fatalf("LinkedModules: %v", err)
+	}
+	if len(linked) != 1 || linked[0] != "mod-a" {
+		t.Errorf("mod-a (état) doit être lié, obtenu: %v", linked)
+	}
+
 	if err := linker.Unlink("mod-a"); err != nil {
 		t.Fatalf("Unlink: %v", err)
 	}

@@ -45,10 +45,10 @@ func runDisconnect(cmd *cobra.Command) error {
 		return nil
 	}
 
-	// Best-effort server-side token invalidation (FR-008).
+	// Best-effort server-side token invalidation (FR-008, POST /api/auth/logout).
 	connector := auth.NewConnector()
 	connector.Client.Token = sess.AccessToken
-	if err := connector.SignOut(context.Background()); err != nil {
+	if err := connector.SignOut(context.Background(), sess.Device); err != nil {
 		debugf("invalidation du token côté serveur : %v", err)
 	}
 

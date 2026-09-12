@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,14 +12,15 @@ import (
 
 func TestSessionSaveLoadClear(t *testing.T) {
 	store := NewStoreVolatile()
-	sess := &Session{
-		Store:        store,
-		AccessToken:  "access-123",
-		RefreshToken: "refresh-456",
-		User:         &User{ID: "u1", Email: "dev@example.com", Role: "Developer"},
-	}
 	exp := time.Now().Add(time.Hour)
-	sess.ExpiresAt = &exp
+	sess := &Session{
+		Store:       store,
+		AccessToken: "access-123",
+		MFAToken:    "mfa-tok",
+		Device:      "device-42",
+		ExpiresAt:   &exp,
+		User:        &User{ID: "u1", Email: "dev@example.com", Username: "dev", Roles: []Role{{ID: "r1", Name: "Developer"}}},
+	}
 
 	if err := sess.Save(); err != nil {
 		t.Fatalf("Save: %v", err)
@@ -31,8 +33,8 @@ func TestSessionSaveLoadClear(t *testing.T) {
 	if loaded == nil || !loaded.IsAuthenticated() {
 		t.Fatal("session chargée non authentifiée")
 	}
-	if loaded.AccessToken != "access-123" || loaded.RefreshToken != "refresh-456" {
-		t.Errorf("tokens incorrects: %+v", loaded)
+	if loaded.AccessToken != "access-123" || loaded.MFAToken != "mfa-tok" || loaded.Device != "device-42" {
+		t.Errorf("session incorrecte: %+v", loaded)
 	}
 	if loaded.User == nil || loaded.User.Email != "dev@example.com" {
 		t.Errorf("user incorrect: %+v", loaded.User)
@@ -72,7 +74,7 @@ func TestSessionExpired(t *testing.T) {
 
 func TestConnectorSignIn(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/auth/sign-in" {
+		if r.URL.Path != "/api/auth/sign-in" {
 			http.Error(w, "not found", http.StatusNotFound)
 			return
 		}
@@ -81,7 +83,7 @@ func TestConnectorSignIn(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"access_token":"tok","refresh_token":"ref","expires_in":3600,"user":{"id":"u1","email":"dev@example.com","name":"Dev","role":"Developer"},"mfaRequired":false}`))
+		_, _ = w.Write([]byte(`{"message":"Connexion réussie","statusCode":200,"data":{"user":{"id":"u1","email":"dev@example.com","username":"dev","roles":[{"id":"r1","name":"Developer"}]},"token":"tok-session","device":{"id":"d1","name":"macbook-pro"}}}`))
 	}))
 	defer server.Close()
 
@@ -90,21 +92,24 @@ func TestConnectorSignIn(t *testing.T) {
 	if err != nil {
 		t.Fatalf("SignIn: %v", err)
 	}
-	if resp.AccessToken != "tok" {
-		t.Errorf("AccessToken = %q, want tok", resp.AccessToken)
+	if resp.Token != "tok-session" {
+		t.Errorf("Token = %q, want tok-session", resp.Token)
 	}
-	if resp.User.Email != "dev@example.com" {
-		t.Errorf("User.Email = %q", resp.User.Email)
+	if resp.User.Email != "dev@example.com" || resp.User.Username != "dev" {
+		t.Errorf("User incorrect: %+v", resp.User)
 	}
-	if resp.MFARequired {
-		t.Error("MFARequired doit être false")
+	if resp.User.Role != "Developer" {
+		t.Errorf("Role dérivé = %q, want Developer", resp.User.Role)
+	}
+	if resp.Device.ID != "d1" {
+		t.Errorf("Device = %+v, want d1", resp.Device)
 	}
 }
 
 func TestConnectorSignInAuthError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
-		_, _ = w.Write([]byte(`{"code":"INVALID_CREDENTIALS","message":"Identifiants invalides"}`))
+		_, _ = w.Write([]byte(`{"statusCode":401,"message":"Identifiants invalides","data":null,"code":"INVALID_CREDENTIALS"}`))
 	}))
 	defer server.Close()
 
@@ -122,5 +127,72 @@ func TestConnectorSignInAuthError(t *testing.T) {
 	}
 	if apiErr.Message != "Identifiants invalides" {
 		t.Errorf("Message = %q, want Identifiants invalides", apiErr.Message)
+	}
+}
+
+func TestConnectorMFAFlow(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer tok-session" {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		switch r.URL.Path {
+		case "/api/mfa/challenge":
+			_, _ = w.Write([]byte(`{"message":"ok","statusCode":200,"data":{"mfaRequired":true,"challenge":"foo","factors":[{"id":"f1","type":"totp","label":"TOTP","enabled":true}]}}`))
+		case "/api/mfa/totp/verify":
+			var body VerifyRequest
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Code != "123456" {
+				http.Error(w, "bad code", http.StatusBadRequest)
+				return
+			}
+			_, _ = w.Write([]byte(`{"message":"ok","statusCode":200,"data":{"mfaVerified":true,"mfaToken":"mfa-jwt"}}`))
+		default:
+			http.Error(w, "not found", http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	conn := &Connector{Client: pkg.NewClient(server.URL)}
+	conn.Client.Token = "tok-session"
+	authn := &Authenticator{Connector: conn}
+
+	gotCode := false
+	resp, err := authn.Verify(t.Context(), func(kind FactorKind) (string, error) {
+		if kind != FactorTOTP {
+			t.Errorf("facteur = %q, want totp", kind)
+		}
+		gotCode = true
+		return "123456", nil
+	})
+	if err != nil {
+		t.Fatalf("Verify: %v", err)
+	}
+	if !gotCode {
+		t.Error("le prompt TOTP doit être appelé")
+	}
+	if resp == nil || !resp.MFAVerified || resp.MFAToken != "mfa-jwt" {
+		t.Errorf("réponse MFA incorrecte: %+v", resp)
+	}
+}
+
+func TestConnectorMFAFlowNotRequired(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"message":"ok","statusCode":200,"data":{"mfaRequired":false,"factors":[]}}`))
+	}))
+	defer server.Close()
+
+	conn := &Connector{Client: pkg.NewClient(server.URL)}
+	conn.Client.Token = "tok-session"
+	authn := &Authenticator{Connector: conn}
+
+	resp, err := authn.Verify(t.Context(), func(FactorKind) (string, error) {
+		t.Error("aucun prompt ne doit être appelé si MFA n'est pas requise")
+		return "", nil
+	})
+	if err != nil {
+		t.Fatalf("Verify: %v", err)
+	}
+	if resp != nil {
+		t.Errorf("réponse = %+v, want nil (pas de MFA requise)", resp)
 	}
 }

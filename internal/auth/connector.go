@@ -15,37 +15,107 @@ const DefaultConnectAPI = "https://connect.sentient.protorians.com"
 // EnvAPIBase overrides the default API base URL.
 const EnvAPIBase = "SENTIENT_CONNECT_API"
 
-// User is the authenticated developer.
+// API paths (global `/api` prefix, Raiton envelope responses).
+const (
+	APISignInPage   = "/api/auth/sign-in"
+	APILogoutPage   = "/api/auth/logout"
+	APIRefreshPage  = "/api/auth/sessions/refresh"
+	APIChallengePage = "/api/mfa/challenge"
+	APITOTPVerify   = "/api/mfa/totp/verify"
+	APIRecoveryVerify = "/api/mfa/recovery/verify"
+)
+
+// Role is a role carried by the authenticated user (UserVm.roles).
+type Role struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// User is the authenticated developer (UserVm).
 type User struct {
-	ID    string `json:"id"`
-	Email string `json:"email"`
-	Name  string `json:"name"`
-	Role  string `json:"role"`
+	ID       string `json:"id"`
+	Email    string `json:"email,omitempty"`
+	Username string `json:"username,omitempty"`
+	Avatar   string `json:"avatar,omitempty"`
+	Status   string `json:"status,omitempty"`
+	Roles    []Role `json:"roles,omitempty"`
+	// Name and Role are legacy/derived fields kept for backward-compatible
+	// display: they fall back to Username and the first role name.
+	Name string `json:"name,omitempty"`
+	Role string `json:"role,omitempty"`
 }
 
-// SignInRequest is the payload for POST /auth/sign-in.
+// normalized returns a copy of the user with `Name`/`Role` filled from the
+// modern `username`/`roles` fields when the legacy fields are empty.
+func (u User) normalized() User {
+	if u.Name == "" {
+		u.Name = u.Username
+	}
+	if u.Role == "" && len(u.Roles) > 0 {
+		u.Role = u.Roles[0].Name
+	}
+	return u
+}
+
+// Device identifies the connected device session.
+type Device struct {
+	ID   string `json:"id,omitempty"`
+	Name string `json:"name,omitempty"`
+}
+
+// SignInRequest is the payload for POST /api/auth/sign-in.
 type SignInRequest struct {
-	Email    string `json:"email"`
+	Email    string `json:"email,omitempty"`
 	Password string `json:"password"`
+	OTP      string `json:"otp,omitempty"`
 }
 
-// SignInResponse is the payload returned by POST /auth/sign-in.
+// SignInResponse is the `data` returned by POST /api/auth/sign-in
+// (SignInVm: `{user, token, device}`).
 type SignInResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int    `json:"expires_in"`
-	User         User   `json:"user"`
-	MFARequired  bool   `json:"mfaRequired"`
+	User          User           `json:"user"`
+	Token         string         `json:"token"`
+	Device        Device         `json:"device"`
+	Organizations []Organization `json:"organizations,omitempty"`
 }
 
-// ChallengeRequest is the payload for POST /mfa/challenge.
-type ChallengeRequest struct {
-	Email string `json:"email"`
+// Organization is a compact organization entry exposed by sign-in.
+type Organization struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
 }
 
-// ChallengeResponse is returned by POST /mfa/challenge.
+// RefreshSessionRequest is the payload for POST /api/auth/sessions/refresh.
+type RefreshSessionRequest struct {
+	ClientID string `json:"clientId,omitempty"`
+}
+
+// RefreshSessionResponse is the `data` returned by POST /api/auth/sessions/refresh.
+type RefreshSessionResponse struct {
+	Token string `json:"token"`
+}
+
+// LogoutRequest is the payload for POST /api/auth/logout.
+type LogoutRequest struct {
+	ClientID string `json:"clientId,omitempty"`
+}
+
+// MFAFactor is a factor exposed by POST /api/mfa/challenge (MfaFactorVm).
+type MFAFactor struct {
+	ID         string `json:"id"`
+	Type       string `json:"type"`
+	Label      string `json:"label"`
+	Enabled    bool   `json:"enabled"`
+	VerifiedAt string `json:"verifiedAt,omitempty"`
+}
+
+// ChallengeResponse is the `data` returned by POST /api/mfa/challenge
+// (MfaChallengeVm: `{mfaRequired, challenge?, factors}`).
 type ChallengeResponse struct {
-	Factors []string `json:"factors"`
+	MFARequired bool        `json:"mfaRequired"`
+	Challenge   string      `json:"challenge,omitempty"`
+	Factors     []MFAFactor `json:"factors"`
 }
 
 // VerifyRequest is the payload for MFA verification endpoints.
@@ -53,12 +123,11 @@ type VerifyRequest struct {
 	Code string `json:"code"`
 }
 
-// TokenResponse is returned by MFA verification and /auth/refresh.
-type TokenResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	ExpiresIn    int    `json:"expires_in"`
-	User         User   `json:"user"`
+// VerifyResponse is the `data` returned by POST /api/mfa/totp/verify and
+// POST /api/mfa/recovery/verify (MfaVerifyVm: `{mfaVerified, mfaToken?}`).
+type VerifyResponse struct {
+	MFAVerified bool   `json:"mfaVerified"`
+	MFAToken    string `json:"mfaToken,omitempty"`
 }
 
 // Connector talks to the sentient-connect API.
@@ -113,52 +182,53 @@ func NewConnector() *Connector {
 	}
 }
 
-// SignIn authenticates with email + password.
+// SignIn authenticates with email + password and returns the single session
+// token (SignInVm `{user, token, device}`).
 func (c *Connector) SignIn(ctx context.Context, req SignInRequest) (*SignInResponse, error) {
 	var out SignInResponse
-	if err := c.Client.Do(ctx, "POST", "/auth/sign-in", req, &out); err != nil {
+	if err := c.Client.Do(ctx, "POST", APISignInPage, req, &out); err != nil {
 		return nil, err
 	}
+	out.User = out.User.normalized()
 	return &out, nil
 }
 
 // SignOut invalidates the current token server-side.
-func (c *Connector) SignOut(ctx context.Context) error {
-	return c.Client.Do(ctx, "POST", "/auth/sign-out", nil, nil)
+func (c *Connector) SignOut(ctx context.Context, clientID string) error {
+	return c.Client.Do(ctx, "POST", APILogoutPage, LogoutRequest{ClientID: clientID}, nil)
 }
 
-// Refresh exchanges a refresh token for a new access token.
-func (c *Connector) Refresh(ctx context.Context, refreshToken string) (*TokenResponse, error) {
-	body := map[string]string{"refresh_token": refreshToken}
-	var out TokenResponse
-	if err := c.Client.Do(ctx, "POST", "/auth/refresh", body, &out); err != nil {
+// RefreshSession rotates the current session token via POST /api/auth/sessions/refresh.
+func (c *Connector) RefreshSession(ctx context.Context, clientID string) (*RefreshSessionResponse, error) {
+	var out RefreshSessionResponse
+	if err := c.Client.Do(ctx, "POST", APIRefreshPage, RefreshSessionRequest{ClientID: clientID}, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
-// ChallengeMFA requests the available MFA factors.
-func (c *Connector) ChallengeMFA(ctx context.Context, email string) (*ChallengeResponse, error) {
+// ChallengeMFA requests the available MFA factors for the current session.
+func (c *Connector) ChallengeMFA(ctx context.Context) (*ChallengeResponse, error) {
 	var out ChallengeResponse
-	if err := c.Client.Do(ctx, "POST", "/mfa/challenge", ChallengeRequest{Email: email}, &out); err != nil {
+	if err := c.Client.Do(ctx, "POST", APIChallengePage, nil, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
 // VerifyTOTP verifies a 6-digit TOTP code.
-func (c *Connector) VerifyTOTP(ctx context.Context, code string) (*TokenResponse, error) {
-	var out TokenResponse
-	if err := c.Client.Do(ctx, "POST", "/mfa/totp/verify", VerifyRequest{Code: code}, &out); err != nil {
+func (c *Connector) VerifyTOTP(ctx context.Context, code string) (*VerifyResponse, error) {
+	var out VerifyResponse
+	if err := c.Client.Do(ctx, "POST", APITOTPVerify, VerifyRequest{Code: code}, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil
 }
 
 // VerifyRecovery verifies a backup/recovery code.
-func (c *Connector) VerifyRecovery(ctx context.Context, code string) (*TokenResponse, error) {
-	var out TokenResponse
-	if err := c.Client.Do(ctx, "POST", "/mfa/recovery/verify", VerifyRequest{Code: code}, &out); err != nil {
+func (c *Connector) VerifyRecovery(ctx context.Context, code string) (*VerifyResponse, error) {
+	var out VerifyResponse
+	if err := c.Client.Do(ctx, "POST", APIRecoveryVerify, VerifyRequest{Code: code}, &out); err != nil {
 		return nil, err
 	}
 	return &out, nil

@@ -7,13 +7,19 @@ import (
 	"time"
 )
 
+// TokenTTL is the client-side lifetime of a session token. The API responses
+// carry no `expires_in`, so the CLI estimates the JWT expiry (matching the
+// backend's 24h access token TTL).
+const TokenTTL = 24 * time.Hour
+
 // Session represents a stored authenticated session.
 type Session struct {
-	Store        Store
-	AccessToken  string
-	RefreshToken string
-	ExpiresAt    *time.Time
-	User         *User
+	Store       Store
+	AccessToken string
+	MFAToken    string
+	Device      string
+	ExpiresAt   *time.Time
+	User        *User
 }
 
 // Combined auth+session flow for interactive connectors keeps the two terms
@@ -29,7 +35,8 @@ func LoadSession(store Store) (*Session, error) {
 	}
 	s.AccessToken = access
 
-	s.RefreshToken, _ = store.Get(KeyRefreshToken)
+	s.MFAToken, _ = store.Get(KeyMFAToken)
+	s.Device, _ = store.Get(KeyDevice)
 
 	if raw, err := store.Get(KeyExpiresAt); err == nil {
 		if ts, perr := strconv.ParseInt(raw, 10, 64); perr == nil {
@@ -65,7 +72,8 @@ func (s *Session) Save() error {
 		value string
 	}{
 		{KeyAccessToken, s.AccessToken},
-		{KeyRefreshToken, s.RefreshToken},
+		{KeyMFAToken, s.MFAToken},
+		{KeyDevice, s.Device},
 		{KeyUserEmail, s.User.Email},
 		{KeyUserID, s.User.ID},
 	}
@@ -83,24 +91,20 @@ func (s *Session) Save() error {
 	return nil
 }
 
-// Refresh renews the access token using the stored refresh token.
+// Refresh rotates the current session token via POST /api/auth/sessions/refresh,
+// using the current token as the bearer credential.
 func (s *Session) Refresh(ctx context.Context, connector *Connector) error {
-	if s.RefreshToken == "" {
-		return fmt.Errorf("aucun refresh token disponible — exécutez 'sentients connect'")
+	if !s.IsAuthenticated() {
+		return fmt.Errorf("aucun token de session disponible — exécutez 'sentients connect'")
 	}
-	resp, err := connector.Refresh(ctx, s.RefreshToken)
+	connector.Client.Token = s.AccessToken
+	resp, err := connector.RefreshSession(ctx, s.Device)
 	if err != nil {
 		return fmt.Errorf("rafraîchissement du token impossible : %w", err)
 	}
-	s.AccessToken = resp.AccessToken
-	s.RefreshToken = resp.RefreshToken
-	if resp.ExpiresIn > 0 {
-		t := time.Now().Add(time.Duration(resp.ExpiresIn) * time.Second)
-		s.ExpiresAt = &t
-	}
-	if resp.User.ID != "" {
-		s.User = &resp.User
-	}
+	s.AccessToken = resp.Token
+	t := time.Now().Add(TokenTTL)
+	s.ExpiresAt = &t
 	return s.Save()
 }
 

@@ -10,12 +10,18 @@ import (
 	"github.com/protorians/sentient-cli/internal/pkg"
 )
 
-// createTestModule sets up a valid module under a project root.
+// createTestModule sets up a valid module under a project root. The default
+// dependency (@sentients/sdk) is stubbed in node_modules/ so the module audits
+// cleanly, mirroring an installed project.
 func createTestModule(t *testing.T, root, name string) {
 	t.Helper()
 	creator := &module.Creator{Root: root}
 	if _, err := creator.Create(name, "Test module"); err != nil {
 		t.Fatalf("Creator.Create(%q): %v", name, err)
+	}
+	sdkDir := filepath.Join(root, "node_modules", "@sentients", "sdk")
+	if err := os.MkdirAll(sdkDir, 0o755); err != nil {
+		t.Fatalf("création de node_modules/@sentients/sdk: %v", err)
 	}
 }
 
@@ -159,6 +165,53 @@ const el = <div>hello</div>;
 	if !found {
 		t.Error("audit doit détecter le JSX dans les services")
 	}
+}
+
+func TestAuditDependenciesInstalled(t *testing.T) {
+	root := setupAuditProject(t)
+	createTestModule(t, root, "installed")
+
+	auditor := &Auditor{Root: root}
+	result, err := auditor.AuditModules("installed")
+	if err != nil {
+		t.Fatalf("AuditModules: %v", err)
+	}
+
+	for _, f := range result.Modules[0].Findings {
+		if f.Category == "dependencies" && f.Rule == "@sentients/sdk" {
+			if f.Severity != module.LevelOK {
+				t.Errorf("dépendance installée doit être OK, reçu %s", f.Severity)
+			}
+			return
+		}
+	}
+	t.Error("finding pour dependencies installées attendu")
+}
+
+func TestAuditDependenciesMissing(t *testing.T) {
+	root := setupAuditProject(t)
+	createTestModule(t, root, "mod-missing")
+
+	// Remove the stubbed node_modules: the default dependency becomes missing.
+	if err := os.RemoveAll(filepath.Join(root, "node_modules")); err != nil {
+		t.Fatal(err)
+	}
+
+	auditor := &Auditor{Root: root}
+	result, err := auditor.AuditModules("mod-missing")
+	if err != nil {
+		t.Fatalf("AuditModules: %v", err)
+	}
+
+	for _, f := range result.Modules[0].Findings {
+		if f.Category == "dependencies" && f.Rule == "@sentients/sdk" {
+			if f.Severity != module.LevelError {
+				t.Errorf("dépendance absente doit être ERROR, reçu %s", f.Severity)
+			}
+			return
+		}
+	}
+	t.Error("finding pour dépendance manquante attendu")
 }
 
 func TestAuditRequirementsMissing(t *testing.T) {

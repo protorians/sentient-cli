@@ -34,9 +34,23 @@ type Manifest struct {
 	IsDefault     bool              `json:"isDefault"`
 	Requirements  map[string]any    `json:"requirements"`
 	Dependencies  map[string]string `json:"dependencies"`
-	Widgets       []json.RawMessage `json:"widgets"`
-	Routines      []json.RawMessage `json:"routines"`
+	Widgets       []Widget          `json:"widgets"`
+	Routines      []Routine         `json:"routines"`
 	Menu          Menu              `json:"menu"`
+}
+
+// Widget is a reusable UI widget declared by the module.
+type Widget struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+}
+
+// Routine is a background task declared by the module.
+type Routine struct {
+	ID          string `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
 }
 
 // Publisher describes the developer publishing the module.
@@ -74,7 +88,15 @@ type Capabilities struct {
 
 // Menu holds menu entries declared by the module.
 type Menu struct {
-	Items []json.RawMessage `json:"items"`
+	Items []MenuItem `json:"items"`
+}
+
+// MenuItem is a single entry of the module menu.
+type MenuItem struct {
+	ID    string `json:"id"`
+	Label string `json:"label"`
+	Icon  string `json:"icon"`
+	URI   string `json:"uri"`
 }
 
 // NewManifest builds a fresh manifest for a module.
@@ -113,9 +135,9 @@ func NewManifest(name, description string) Manifest {
 		IsDefault:    false,
 		Requirements: map[string]any{},
 		Dependencies: map[string]string{"@sentients/sdk": "workspace:*"},
-		Widgets:      []json.RawMessage{},
-		Routines:     []json.RawMessage{},
-		Menu:         Menu{Items: []json.RawMessage{}},
+		Widgets:      []Widget{},
+		Routines:     []Routine{},
+		Menu:         Menu{Items: []MenuItem{}},
 	}
 }
 

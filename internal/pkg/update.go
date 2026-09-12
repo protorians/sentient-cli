@@ -31,11 +31,21 @@ func cachePath() string {
 	return filepath.Join(dir, ".update-check")
 }
 
+// SkipUpdateEnvVar disables the network update check when set to a truthy
+// value (e.g. `1`, `true`). It lets CI/CD runs stay off the network.
+const SkipUpdateEnvVar = "SENTIENT_CLI_SKIP_UPDATE"
+
 // CheckForUpdate queries the GitHub releases API and returns a notification
 // message when a newer version is available. Returns empty string when the
-// CLI is up-to-date or when the check should be skipped (cached, offline, etc.).
+// CLI is up-to-date or when the check should be skipped (cached, offline,
+// `SENTIENT_CLI_SKIP_UPDATE` set, running in CI, etc.).
 func CheckForUpdate(currentVersion string) string {
 	if currentVersion == "" || currentVersion == "dev" {
+		return ""
+	}
+
+	// NFR-006 / CI: allow disabling the network call entirely.
+	if skipUpdate() {
 		return ""
 	}
 
@@ -64,6 +74,24 @@ func CheckForUpdate(currentVersion string) string {
 		"Mise à jour disponible : v%s → v%s\n  → https://github.com/protorians/sentient-cli/releases/latest",
 		currentClean, latestClean,
 	)
+}
+
+// skipUpdate reports whether the network check is disabled by configuration.
+// A CLI-invokable env var is honoured first (only a truthy value disables,
+// so `SENTIENT_CLI_SKIP_UPDATE=0` stays online); otherwise the presence of a
+// CI environment is taken as a signal to stay offline unless an explicit opt-in.
+func skipUpdate() bool {
+	if v := os.Getenv(SkipUpdateEnvVar); v != "" {
+		if b, err := strconv.ParseBool(v); err == nil {
+			return b
+		}
+		// Unknown value: treat the presence of the variable as a disable.
+		return true
+	}
+	if _, ok := os.LookupEnv("CI"); ok {
+		return os.Getenv("SENTIENT_CLI_UPDATE") == ""
+	}
+	return false
 }
 
 // fetchLatestVersion retrieves the latest release tag from GitHub.

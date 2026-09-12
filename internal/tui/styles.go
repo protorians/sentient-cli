@@ -86,7 +86,7 @@ func NewStyles() *Styles {
 		Help:         lipgloss.NewStyle().Foreground(lipgloss.Color(muted)).MarginTop(1),
 		Divider:      lipgloss.NewStyle().Foreground(lipgloss.Color(muted)).Faint(true),
 		TableHeader:  lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(accent)),
-		TableRow:     lipgloss.NewStyle().Foreground(lipgloss.Color("#FFFFFF")),
+		TableRow:     lipgloss.NewStyle().Foreground(lipgloss.Color(muted)),
 		Focus:        lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(accent)),
 		ErrorBar:     lipgloss.NewStyle().Background(lipgloss.Color(p.error)).Foreground(lipgloss.Color("#FFFFFF")).Padding(0, 1),
 	}

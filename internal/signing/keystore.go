@@ -32,28 +32,55 @@ type KeyStore interface {
 // keyringKeyStore uses the OS keychain via go-keyring.
 type keyringKeyStore struct{}
 
-// fallbackKeyStore persists keys in an AES-256-GCM encrypted file.
+// fallbackKeyStore persists keys in an AES-256-GCM encrypted file. The AES key
+// is derived (PBKDF2) from the per-user machine secret (never hard-coded).
 type fallbackKeyStore struct {
-	path string
-	key  string
-	mu   sync.Mutex
+	path   string
+	secret []byte
+	mu     sync.Mutex
 }
 
-// NewKeyStore returns the appropriate key store for the platform.
+// NewKeyStore returns the appropriate key store for the platform. The system
+// keychain is used when reachable; otherwise the CLI transparently falls back
+// to an encrypted vault file (spec §7.6, risk R-002).
 func NewKeyStore() KeyStore {
-	return &keyringKeyStore{}
+	if keychainAvailable() {
+		return &keyringKeyStore{}
+	}
+	return newFallbackKeyStore(defaultKeyStorePath())
 }
 
-// NewKeyStoreVolatile returns a store forced to use the fallback backend.
-func NewKeyStoreVolatile() KeyStore {
-	home, err := os.UserHomeDir()
+// newFallbackKeyStore builds a fallback key store on the given vault path
+// using the per-user machine secret.
+func newFallbackKeyStore(path string) *fallbackKeyStore {
+	secret, err := pkg.MachineSecret()
 	if err != nil {
-		home = os.TempDir()
+		secret = newRandomSecret()
 	}
-	return &fallbackKeyStore{
-		path: filepath.Join(home, ".sentient-cli", "signing.enc"),
-		key:  "sentient-cli-signing-v1",
+	return &fallbackKeyStore{path: path, secret: secret}
+}
+
+func defaultKeyStorePath() string {
+	dir, err := pkg.DataDir()
+	if err != nil {
+		return filepath.Join(os.TempDir(), "sentient-cli-signing.enc")
 	}
+	return filepath.Join(dir, "signing.enc")
+}
+
+// keychainAvailable probes the OS keychain with a harmful read of a key that
+// cannot exist (see auth.credentials.keychainAvailable).
+func keychainAvailable() bool {
+	_, err := keyring.Get(signingServiceName, "__sentient-cli_probe__")
+	return err == nil || isKeyringNotExist(err)
+}
+
+func newRandomSecret() []byte {
+	secret, err := pkg.NewRandomKey()
+	if err != nil {
+		panic(err) // crypto/rand failure: nothing secure can be written in this state
+	}
+	return secret
 }
 
 // --- keyringKeyStore ---
@@ -177,7 +204,7 @@ func (s *fallbackKeyStore) load() (map[string]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("lecture du fichier de clés impossible : %w", err)
 	}
-	plain, err := pkg.DecryptAESGCM(s.key, ciphertext)
+	plain, err := pkg.DecryptVault(s.secret, ciphertext)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +220,7 @@ func (s *fallbackKeyStore) save(data map[string]string) error {
 	if err != nil {
 		return fmt.Errorf("sérialisation des clés impossible : %w", err)
 	}
-	ciphertext, err := pkg.EncryptAESGCM(s.key, plain)
+	ciphertext, err := pkg.EncryptVault(s.secret, plain)
 	if err != nil {
 		return err
 	}

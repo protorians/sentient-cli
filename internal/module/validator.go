@@ -1,6 +1,8 @@
 package module
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -101,6 +103,9 @@ func (v *Validator) ValidateModule(name string) (*Result, error) {
 	expectedDomain := "mod.sentients." + name
 	addLevel(res, "manifest.json", "domain", manifest.Domain == expectedDomain,
 		"domain au format mod.sentients.<name>", LevelWarning)
+	// permissions must be an array (spec rule, WARNING severity)
+	addLevel(res, "manifest.json", "permissions", rawPermissionsIsArray(manifestPath),
+		"permissions est un tableau", LevelWarning)
 	// entry default export present in index.tsx
 	indexPath := filepath.Join(moduleDir, config.ModuleEntryFileName)
 	addLevel(res, "index.tsx", "export", pkg.FileExists(indexPath) && containsDefaultExport(indexPath),
@@ -129,13 +134,15 @@ func addLevel(res *Result, category, rule string, ok bool, okMsg string, warning
 	res.Findings = append(res.Findings, Finding{Category: category, Rule: rule, Severity: sev, Message: msg})
 }
 
-var semverRE = regexp.MustCompile(`^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$`)
+// semverRE matches a strict SemVer 2.0.0 version (leading `v` tolerated), as
+// used by the manifest `version` field (based on semver.org grammar).
+var semverRE = regexp.MustCompile(`^v?(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)\.(?:0|[1-9]\d*)(?:-[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?(?:\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$`)
 
 func isSemver(v string) bool {
 	return semverRE.MatchString(v)
 }
 
-var defaultExportRE = regexp.MustCompile(`export\s+default\s+declaration`)
+var defaultExportRE = regexp.MustCompile(`(?m)^\s*export\s+default\s+(?:async\s+)?(?:function[\s\w]*|\{(?:[^}]*\})?|\([^)]*\)\s*=>|class\s+\w+|[A-Za-z_$][\w$]*)`)
 
 func containsDefaultExport(path string) bool {
 	data, err := os.ReadFile(path)
@@ -143,4 +150,26 @@ func containsDefaultExport(path string) bool {
 		return false
 	}
 	return defaultExportRE.Match(data)
+}
+
+// rawPermissionsIsArray reports whether the `permissions` field of a manifest
+// is an array. The typed struct (`[]string`) cannot represent a malformed
+// manifest, so the raw JSON is inspected instead (spec §5.10, WARNING rule).
+func rawPermissionsIsArray(manifestPath string) bool {
+	data, err := os.ReadFile(manifestPath)
+	if err != nil {
+		return false
+	}
+	dec := json.NewDecoder(bytes.NewReader(data))
+	dec.UseNumber()
+	var raw map[string]json.RawMessage
+	if err := dec.Decode(&raw); err != nil {
+		return false
+	}
+	perm, ok := raw["permissions"]
+	if !ok {
+		return false
+	}
+	var arr []json.RawMessage
+	return json.Unmarshal(perm, &arr) == nil
 }

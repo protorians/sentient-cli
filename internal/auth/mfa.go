@@ -6,41 +6,46 @@ import (
 	"strings"
 )
 
-// MFAFactor is an available multi-factor authentication method.
-type MFAFactor string
+// FactorKind identifies an MFA factor type (MfaFactorVm.type).
+type FactorKind string
 
-// Supported MFA factors.
+// Supported MFA factor kinds.
 const (
-	FactorTOTP     MFAFactor = "totp"
-	FactorRecovery MFAFactor = "recovery"
+	FactorTOTP     FactorKind = "totp"
+	FactorRecovery FactorKind = "recovery"
 )
 
-// Authenticator runs the MFA part of the sign-in flow.
+// Authenticator runs the guarded MFA step of the session flow. The connector
+// must carry the session token (bearer) obtained by SignIn: challenge and
+// verification endpoints are user-guarded (`POST /api/mfa/*`).
 type Authenticator struct {
 	Connector *Connector
 }
 
-// Prompt collects a verification code from the user.
-type Prompt func(factor MFAFactor) (string, error)
+// Prompt collects a verification code from the user for the given factor.
+type Prompt func(factor FactorKind) (string, error)
 
-// Verify handles MFA verification for the given email. Available factors are
-// requested from the API; TOTP is preferred, with recovery codes as a backup.
-func (a *Authenticator) Verify(ctx context.Context, email string, prompt Prompt) (*TokenResponse, error) {
-	var factors []MFAFactor
-	if challenge, err := a.Connector.ChallengeMFA(ctx, email); err == nil {
-		for _, raw := range challenge.Factors {
-			if f := normalizeFactor(raw); f != "" {
-				factors = append(factors, f)
-			}
+// Verify checks MFA for the current session. It first asks the API for the
+// available factors (POST /api/mfa/challenge); when no factor is required it
+// returns (nil, nil) so callers can skip MFA. Otherwise it tries the enabled
+// factors in challenge order (TOTP preferred), verifying the code through
+// /api/mfa/totp/verify or /api/mfa/recovery/verify. A challenge failure is not
+// swallowed: it is reported alongside the verification failure.
+func (a *Authenticator) Verify(ctx context.Context, prompt Prompt) (*VerifyResponse, error) {
+	challenge, challengeErr := a.Connector.ChallengeMFA(ctx)
+	if challengeErr == nil {
+		if !challenge.MFARequired {
+			return nil, nil
 		}
 	}
-	if len(factors) == 0 {
-		factors = []MFAFactor{FactorTOTP, FactorRecovery}
+	kinds := kindsFromFactors(challengeFactors(challenge, challengeErr))
+	if len(kinds) == 0 {
+		kinds = []FactorKind{FactorTOTP, FactorRecovery}
 	}
 
 	var lastErr error
-	for _, factor := range factors {
-		code, err := prompt(factor)
+	for _, kind := range kinds {
+		code, err := prompt(kind)
 		if err != nil {
 			return nil, err
 		}
@@ -49,33 +54,55 @@ func (a *Authenticator) Verify(ctx context.Context, email string, prompt Prompt)
 			return nil, fmt.Errorf("code MFA obligatoire")
 		}
 
-		switch factor {
+		switch kind {
 		case FactorTOTP:
 			resp, err := a.Connector.VerifyTOTP(ctx, code)
-			if err == nil {
-				return resp, nil
+			if err != nil {
+				lastErr = err
+				continue
 			}
-			lastErr = err
+			return resp, nil
 		case FactorRecovery:
 			resp, err := a.Connector.VerifyRecovery(ctx, code)
-			if err == nil {
-				return resp, nil
+			if err != nil {
+				lastErr = err
+				continue
 			}
-			lastErr = err
+			return resp, nil
 		}
 	}
-	if lastErr != nil {
-		return nil, fmt.Errorf("vérification MFA échouée : %w", lastErr)
+
+	if lastErr == nil {
+		return nil, fmt.Errorf("vérification MFA échouée")
 	}
-	return nil, fmt.Errorf("vérification MFA échouée")
+	if challengeErr != nil {
+		return nil, fmt.Errorf("vérification MFA échouée : %v ; le challenge MFA a également échoué : %v", lastErr, challengeErr)
+	}
+	return nil, fmt.Errorf("vérification MFA échouée : %v", lastErr)
 }
 
-func normalizeFactor(raw string) MFAFactor {
-	switch strings.ToLower(strings.TrimSpace(raw)) {
-	case "totp", "token", "otp", "authenticator":
-		return FactorTOTP
-	case "recovery", "backup", "recovery_code", "backup_code", "codes":
-		return FactorRecovery
+// challengeFactors returns the factors exposed by a successful challenge, or
+// nil when the challenge failed (the fallback loop then covers TOTP + recovery).
+func challengeFactors(challenge *ChallengeResponse, err error) []MFAFactor {
+	if err != nil || challenge == nil {
+		return nil
 	}
-	return ""
+	return challenge.Factors
+}
+
+// kindsFromFactors maps the API factors to the local supported kinds.
+func kindsFromFactors(factors []MFAFactor) []FactorKind {
+	var kinds []FactorKind
+	for _, f := range factors {
+		if !f.Enabled {
+			continue
+		}
+		switch strings.ToLower(strings.TrimSpace(f.Type)) {
+		case "totp", "token", "otp", "authenticator":
+			kinds = append(kinds, FactorTOTP)
+		case "recovery", "backup", "recovery_code", "backup_code", "codes":
+			kinds = append(kinds, FactorRecovery)
+		}
+	}
+	return kinds
 }

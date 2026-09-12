@@ -12,15 +12,6 @@ import (
 	"github.com/protorians/sentient-cli/internal/pkg"
 )
 
-// SignResult describes a created signature.
-type SignResult struct {
-	Module      string
-	Version     string
-	Archive     string
-	Signature   string
-	Fingerprint string
-}
-
 // GenerateKeyPair generates a new Ed25519 key pair.
 func GenerateKeyPair() (ed25519.PublicKey, ed25519.PrivateKey, error) {
 	pub, priv, err := ed25519.GenerateKey(nil)

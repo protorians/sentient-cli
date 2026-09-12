@@ -214,6 +214,55 @@ func TestParseSemverInvalid(t *testing.T) {
 	}
 }
 
+func TestSkipUpdate(t *testing.T) {
+	cases := []struct {
+		name  string
+		skip  string
+		ci    string
+		optIn string
+		want  bool
+	}{
+		{"aucun env", "", "", "", false},
+		{"skip=1", "1", "", "", true},
+		{"skip=true", "true", "", "", true},
+		{"skip=0 reste en ligne", "0", "", "", false},
+		{"skip=inconnu désactive", "oui", "", "", true},
+		{"CI sans opt-in", "", "present", "", true},
+		{"CI avec opt-in", "", "present", "1", false},
+		{"CI + skip=1", "1", "present", "", true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// "" means unset; only set the variable when it has a value.
+			setOrUnset(t, SkipUpdateEnvVar, tc.skip)
+			setOrUnset(t, "CI", tc.ci)
+			setOrUnset(t, "SENTIENT_CLI_UPDATE", tc.optIn)
+			if got := skipUpdate(); got != tc.want {
+				t.Errorf("skipUpdate() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+// setOrUnset assigns value to key across the test, or removes the variable when
+// value is empty. The previous state is restored at cleanup.
+func setOrUnset(t *testing.T, key, value string) {
+	t.Helper()
+	old, had := os.LookupEnv(key)
+	if value == "" {
+		_ = os.Unsetenv(key)
+	} else {
+		_ = os.Setenv(key, value)
+	}
+	t.Cleanup(func() {
+		if had {
+			_ = os.Setenv(key, old)
+		} else {
+			_ = os.Unsetenv(key)
+		}
+	})
+}
+
 // fetchLatestFromURL is a test helper that fetches from a custom URL.
 func fetchLatestFromURL(baseURL string) (string, error) {
 	resp, err := http.Get(baseURL)

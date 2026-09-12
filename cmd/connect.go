@@ -78,20 +78,24 @@ func runConnect(cmd *cobra.Command) error {
 	}
 
 	session := &auth.Session{
-		Store:        store,
-		AccessToken:  signIn.AccessToken,
-		RefreshToken: signIn.RefreshToken,
-		User:         &signIn.User,
+		Store:       store,
+		AccessToken: signIn.Token,
+		Device:      signIn.Device.ID,
+		User:        &signIn.User,
 	}
-	if signIn.ExpiresIn > 0 {
-		t := time.Now().Add(time.Duration(signIn.ExpiresIn) * time.Second)
-		session.ExpiresAt = &t
-	}
+	t := time.Now().Add(auth.TokenTTL)
+	session.ExpiresAt = &t
 
-	if signIn.MFARequired {
-		if err := runMFA(ctx, connector, email, session); err != nil {
-			return err
-		}
+	// MFA: challenge and verification run against the guarded `/api/mfa/*`
+	// endpoints, so the session token must be attached to the connector first.
+	authn := &auth.Authenticator{Connector: connector}
+	connector.Client.Token = session.AccessToken
+	mfaResp, err := runMFA(ctx, authn)
+	if err != nil {
+		return err
+	}
+	if mfaResp != nil && mfaResp.MFAVerified && mfaResp.MFAToken != "" {
+		session.MFAToken = mfaResp.MFAToken
 	}
 
 	if err := session.Save(); err != nil {
@@ -102,9 +106,8 @@ func runConnect(cmd *cobra.Command) error {
 	return nil
 }
 
-func runMFA(ctx context.Context, connector *auth.Connector, email string, session *auth.Session) error {
-	authn := &auth.Authenticator{Connector: connector}
-	prompt := func(factor auth.MFAFactor) (string, error) {
+func runMFA(ctx context.Context, authn *auth.Authenticator) (*auth.VerifyResponse, error) {
+	prompt := func(factor auth.FactorKind) (string, error) {
 		label := "Code TOTP"
 		if factor == auth.FactorRecovery {
 			label = "Code de récupération"
@@ -115,24 +118,14 @@ func runMFA(ctx context.Context, connector *auth.Connector, email string, sessio
 		return tui.AskText(label, "")
 	}
 
-	tok, err := tui.RunWithSpinner("Vérification du code…", func() (*auth.TokenResponse, error) {
-		return authn.Verify(ctx, email, prompt)
+	resp, err := tui.RunWithSpinner("Vérification du code…", func() (*auth.VerifyResponse, error) {
+		return authn.Verify(ctx, prompt)
 	})
 	if err != nil {
-		return classifyConnectorError("MFA", err,
+		return nil, classifyConnectorError("MFA", err,
 			"Le code est incorrect ou expiré. Vérifiez votre application TOTP / vos codes de récupération (backup codes).")
 	}
-
-	session.AccessToken = tok.AccessToken
-	session.RefreshToken = tok.RefreshToken
-	if tok.ExpiresIn > 0 {
-		t := time.Now().Add(time.Duration(tok.ExpiresIn) * time.Second)
-		session.ExpiresAt = &t
-	}
-	if tok.User.ID != "" {
-		session.User = &tok.User
-	}
-	return nil
+	return resp, nil
 }
 
 func classifyConnectorError(category string, err error, fix string) error {

@@ -4,15 +4,22 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/protorians/sentient-cli/internal/pkg"
 )
 
-// newVolatileStore returns a fallback key store isolated in a temp dir.
+// newVolatileStore returns a fallback key store isolated in a temp dir with a
+// fresh random secret.
 func newVolatileStore(t *testing.T) *fallbackKeyStore {
 	t.Helper()
 	dir := t.TempDir()
+	secret, err := pkg.NewRandomKey()
+	if err != nil {
+		t.Fatalf("NewRandomKey: %v", err)
+	}
 	return &fallbackKeyStore{
-		path: filepath.Join(dir, "signing.enc"),
-		key:  "sentient-cli-signing-test",
+		path:   filepath.Join(dir, "signing.enc"),
+		secret: secret,
 	}
 }
 

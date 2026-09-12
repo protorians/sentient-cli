@@ -1,6 +1,9 @@
 package module
 
 import (
+	"encoding/json"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/protorians/sentient-cli/internal/pkg"
@@ -72,6 +75,56 @@ func TestManifestRoundTrip(t *testing.T) {
 	}
 }
 
+func TestManifestDeclarationsRoundTrip(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/manifest.json"
+
+	m := NewManifest("billing", "")
+	m.Widgets = []Widget{
+		{ID: "w_1", Name: "Stats", Description: "Graphique des ventes"},
+	}
+	m.Routines = []Routine{
+		{ID: "r_1", Name: "Invoicing", Description: "Génération des factures"},
+	}
+	m.Menu.Items = []MenuItem{
+		{ID: "mi_1", Label: "Factures", Icon: "FileIcon", URI: "/billing/invoices"},
+	}
+	if err := m.Save(path); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+
+	loaded, err := LoadManifest(path)
+	if err != nil {
+		t.Fatalf("LoadManifest: %v", err)
+	}
+	if len(loaded.Widgets) != 1 || loaded.Widgets[0].Name != "Stats" {
+		t.Errorf("Widgets non conformes: %+v", loaded.Widgets)
+	}
+	if len(loaded.Routines) != 1 || loaded.Routines[0].ID != "r_1" {
+		t.Errorf("Routines non conformes: %+v", loaded.Routines)
+	}
+	if len(loaded.Menu.Items) != 1 || loaded.Menu.Items[0].URI != "/billing/invoices" {
+		t.Errorf("Menu non conforme: %+v", loaded.Menu)
+	}
+}
+
+func TestNewManifestDeclarationsAreTypedEmptyArrays(t *testing.T) {
+	m := NewManifest("blog", "")
+	if m.Widgets == nil || m.Routines == nil || m.Menu.Items == nil {
+		t.Fatal("widgets/routines/menu doivent être des tableaux vides non-nil")
+	}
+	data, err := json.Marshal(m)
+	if err != nil {
+		t.Fatalf("Marshal: %v", err)
+	}
+	raw := string(data)
+	for _, field := range []string{`"widgets":[]`, `"routines":[]`, `"items":[]`} {
+		if !strings.Contains(raw, field) {
+			t.Errorf("le JSON ne contient pas %q: %s", field, raw)
+		}
+	}
+}
+
 func TestUpperSnake(t *testing.T) {
 	cases := map[string]string{
 		"blog":         "BLOG",
@@ -86,8 +139,8 @@ func TestUpperSnake(t *testing.T) {
 }
 
 func TestSemver(t *testing.T) {
-	ok := []string{"0.1.0", "1.2.3", "1.2.3-beta.1", "v2.0.0", "2.0.0+meta"}
-	bad := []string{"", "1", "1.2", "abc", "1.2.x"}
+	ok := []string{"0.1.0", "1.2.3", "1.2.3-beta.1", "v2.0.0", "2.0.0+meta", "10.2.300"}
+	bad := []string{"", "1", "1.2", "abc", "1.2.x", "01.2.3", "1.2.3-", "1.2.3+", "1.2.3..4"}
 
 	for _, v := range ok {
 		if !isSemver(v) {
@@ -97,6 +150,92 @@ func TestSemver(t *testing.T) {
 	for _, v := range bad {
 		if isSemver(v) {
 			t.Errorf("isSemver(%q) = true, want false", v)
+		}
+	}
+}
+
+func TestBumpPatch(t *testing.T) {
+	for version, want := range map[string]string{
+		"0.1.0":       "0.1.1",
+		"1.2.3":       "1.2.4",
+		"v3.4.5":      "3.4.6",
+		"2.0.0-beta":  "2.0.1",
+		"2.0.0+build": "2.0.1",
+	} {
+		got, err := pkg.BumpPatch(version)
+		if err != nil {
+			t.Errorf("BumpPatch(%q): %v", version, err)
+			continue
+		}
+		if got != want {
+			t.Errorf("BumpPatch(%q) = %q, want %q", version, got, want)
+		}
+	}
+	for _, bad := range []string{"", "abc", "1.2", "1.2.x"} {
+		if _, err := pkg.BumpPatch(bad); err == nil {
+			t.Errorf("BumpPatch(%q) doit échouer", bad)
+		}
+	}
+}
+
+func TestContainsDefaultExport(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/index.tsx"
+
+	valid := []string{
+		"export default declaration;",
+		"export default function Foo() {}",
+		"export default async () => {}",
+		"export default () => {}",
+		"export default class Foo {}",
+		"export default {\n  render: async () => {},\n};\n",
+		"  export default foo;",
+	}
+	invalid := []string{
+		"",
+		"export { default } from \"./mod\";",
+		"const x = export;",
+		"exports.default = {};",
+	}
+
+	for _, content := range valid {
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if !containsDefaultExport(path) {
+			t.Errorf("containsDefaultExport(%q) = false, want true", content)
+		}
+	}
+	for _, content := range invalid {
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if containsDefaultExport(path) {
+			t.Errorf("containsDefaultExport(%q) = true, want false", content)
+		}
+	}
+}
+
+func TestRawPermissionsIsArray(t *testing.T) {
+	dir := t.TempDir()
+	path := dir + "/manifest.json"
+
+	cases := map[string]bool{
+		`{"permissions": []}`:                     true,
+		`{"permissions": ["read"]}`:               true,
+		`{"permissions": "read"}`:                 false,
+		`{"permissions": {}}`:                     false,
+		`{"permissions": 1}`:                      false,
+		`{"nopermissions": []}`:                   false,
+		`{"schemaVersion":1,"permissions":[]}`:    true,
+		`{"schemaVersion":1,"permissions":"all"}`: false,
+	}
+	for content, want := range cases {
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if got := rawPermissionsIsArray(path); got != want {
+			t.Errorf("rawPermissionsIsArray(%q) = %v, want %v", content, got, want)
 		}
 	}
 }

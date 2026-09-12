@@ -1,7 +1,7 @@
 # Rapport d'implémentation — Sentient CLI
 
 > Document de suivi pour implémenter les features au fil des itérations.
-> Dernière mise à jour : 2026-09-11 — version courante du code : `dev` (HEAD `cba23bd`, dernière release `v0.0.7`).
+> Dernière mise à jour : 2026-09-12 — version courante du code : `dev` (branche `alpha`).
 > Spécification de référence : `docs/specs/sentient.md` (statut *PLANNING*, pourtant largement implémentée).
 
 ---
@@ -45,13 +45,15 @@ ont une implémentation (parfois partielle). Le reste des FR (001→024) est cou
 - Token UUID v4 dans le manifest (FR-005), key en `UPPER_SNAKE_CASE`.
 
 ### `sentients connect` (FR-006, FR-007, FR-008)
-- Sign-in email/mot de passe via `POST /auth/sign-in`, refresh token + expiration.
-- MFA TOTP / backup codes via `/mfa/challenge`, `/mfa/totp/verify`, `/mfa/recovery/verify`.
+- Sign-in email/mot de passe via `POST /api/auth/sign-in` → `{user, token, device}` (**jeton unique**).
+- MFA via les endpoints **gardés** `POST /api/mfa/challenge`, `/api/mfa/totp/verify`, `/api/mfa/recovery/verify`
+  (le token de session est attaché en Bearer après le sign-in).
+- Expiration estimée à 24 h ; rafraîchissement via `POST /api/auth/sessions/refresh` (plus de refresh token).
 - Credentials stockées dans le keychain OS (`go-keyring`), avec store chiffré de repli.
 - Base URL via env `SENTIENT_CONNECT_API` ou `app.config.json`.
 
 ### `sentients disconnect` (FR-008, FR-009)
-- Invalidation serveur best-effort (`POST /auth/sign-out`) + suppression locale, avec confirmation.
+- Invalidation serveur best-effort (`POST /api/auth/logout`) + suppression locale, avec confirmation.
 
 ### `sentients pack [module]` (FR-010, FR-011)
 - Zip `external_modules/<module>/` + `public/assets/<module>/` → `.sentients/build/<module>-<version>.smp`.
@@ -64,13 +66,24 @@ ont une implémentation (parfois partielle). Le reste des FR (001→024) est cou
 
 ### `sentients publish [module]` (FR-012, FR-013)
 - Authentification obligatoire, auto-audit pré-publication (config `auto_audit`), complétion
-  interactive des métadonnées (`name`, `description`, `publisher.*`), pack puis upload multipart
-  `POST /store/modules/publish`.
+  interactive des métadonnées (`name`, `description`, `publisher.*`), pack puis publication en
+  **3 étapes** sur l'API developer-store (spec connect §21) :
+  1. résolution/création du produit module (`POST /api/developer-store/modules`) ;
+  2. création de la version (`POST .../versions`) ;
+  3. déclaration de l'artefact (`POST .../versions/:versionId/artifact` : `manifest` +
+     checksum SHA-256 + signature `.smp.sig` + `size`).
+- Conflit SemVer → bump patch interactif (jusqu'à 5 essais) ; après succès, le manifest local
+  est synchronisé (version publiée + **token produit résolu**).
 
 ### `sentients link` / `sentients unlink` (FR-014, FR-015)
-- `link` : liste les modules distants (`GET /store/modules`), valide le token (`GET /store/modules/:token`),
-  écrit le token distant dans le `manifest.json` local.
-- `unlink` : régénère un token UUID local (déliaison locale ; pas d'appel API de mise à jour).
+- `link` : liste les produits modules (`GET /api/developer-store/modules`), valide l'id
+  (`GET /api/developer-store/modules/:id`), écrit l'id distant dans le `manifest.json` local et
+  **fusionne les métadonnées distantes absentes** (`name`, `description`, `publisher.*`) — §5.7 étape 6.
+- Liaison persistée dans un état projet `.sentients/links.json` (nom → id distant) : `LinkedModules`
+  ne dépend plus du **format** du token (fini le « UUID ⇒ local » fragile) — pont de migration vers
+  l'ancienne heuristique conservé.
+- `unlink` : régénère un token UUID local et purge l'état `links.json` (déliaison locale ; pas d'appel
+  API de mise à jour).
 
 ### `sentients debug [module]` (FR-016)
 - Validation + tentative de build de diagnostic (single ou table tous modules), logs formatés.
@@ -96,7 +109,7 @@ ont une implémentation (parfois partielle). Le reste des FR (001→024) est cou
 | `signing` | Signature Ed25519 | `KeyStore`, `GenerateKeyPair`, `SignArchive`, `VerifySignature`, `Fingerprint`, `FindArchive` |
 | `audit` | Audit conformité | `Auditor`, `AuditResult` |
 | `debug` | Build de diagnostic | `Debugger`, `DebugResult`, `FormatDebugLogs` |
-| `store` | Client store API | `Client` (`ListModules`, `GetModule`, `Publish`) |
+| `store` | Client store API | `Client` (`ListModules`, `GetModule`, `UpdateModule`, `Publish` — 3 étapes developer-store) |
 | `pkg` | Utilitaires | erreurs+exit codes, crypto AES-256-GCM, fs, git, http, uuid, update |
 | `tui` | UI Charm | `AskText/AskSecret/Select/Confirm`, `RunWithSpinner`, `Table`, `NewStyles` |
 
@@ -104,54 +117,89 @@ ont une implémentation (parfois partielle). Le reste des FR (001→024) est cou
 
 ## 4. Écarts, limitations et code incomplet (à corriger en priorité)
 
-### 4.1 Fonctionnalités prévues mais non câblées
-- **Fallback keychain → fichier chiffré jamais déclenché.**
-  - `auth.NewStore()` (credentials.go:63) et `signing.NewKeyStore()` (keystore.go:43) retournent
-    toujours le store keychain. Le fallback AES-256-GCM (`credentials.enc` / `signing.enc`) existe
-    mais n'est **jamais activé** si le keychain n'est pas disponible (ce que promettent la spec §7.6,
-    R-002 et l'aide `sentients sign`).
-  - `signing.NewKeyStoreVolatile()` et `auth.NewStoreVolatile()` sont du code mort (non appelé).
-- **Passphrases dures codées** pour le chiffrement de repli : `"sentient-cli-fallback-v1"`
-  (credentials.go:77) et `"sentient-cli-signing-v1"` (keystore.go:55) → AES = SHA-256 de la passphrase
-  (pkg/crypto.go), sans KDF. Brute-forçable pour quiconque lit le binaire. À remplacer par une
-  passphrase dérivée/stockée (TODO sécurité).
-- **`sign verify` / MFA** : les erreurs du challenge MFA sont silencieusement ignorées
-  (mfa.go:30-39) — un endpoint `/mfa/challenge` en panne est masqué.
+> Itération du 2026-09-12 : sécurisation du fallback, code mort supprimé,
+> heuristiques fiabilisées, `publish` (conflit SemVer) et `debug` (script du
+> module) enrichis. Les §4.1, 4.2-partiel et 4.3-partiel sont désormais traités.
+>
+> Itération du 2026-09-12 (bis) : `link` fusionne désormais les métadonnées
+> distantes absentes (§5.7) ; `LinkedModules` s'appuie sur un état projet
+> `.sentients/links.json` (plus de dépendance au format du token) ; le schéma
+> `widgets`/`routines`/`menu` du manifest est modélisé ; couleurs TUI
+> dérivées de la palette (fin des hex hardcodés hors palette).
+>
+> Itération du 2026-09-12 (ter) : **alignement API sur les contrats documentés**
+> (`sentient-workspace`) — enveloppe Raiton `{message, data, statusCode}` dans
+> `pkg/http.go`, préfixe global `/api`, auth à **jeton unique**
+> (`POST /api/auth/sign-in`, `/logout`, `/sessions/refresh`), MFA **gardée**
+> (`/api/mfa/challenge|totp|recovery` — challenge après sign-in), store sur
+> l'API developer-store `POST /api/developer-store/modules/**` (pipeline
+> produit → version → artefact avec checksum SHA-256 + signature) ; tests et
+> spec §8.1/§8.2 réalignés.
+
+### 4.1 Sécurité — ✅ corrigé à l'itération du 2026-09-12
+- **Fallback keychain → fichier chiffré activé** : `auth.NewStore()` et
+  `signing.NewKeyStore()` sondent désormais le keychain OS (`keychainAvailable`,
+  lecture d'une clé sentinelle) ; s'il est indisponible, elles basculent
+  réellement sur le vault chiffré `~/.sentient-cli/credentials.enc` /
+  `signing.enc` (spec §7.6, R-002).
+- **Passphrases dures supprimées** : les AES utilisaient `"sentient-cli-fallback-v1"` /
+  `"sentient-cli-signing-v1"`. Désormais le secret est **aléatoire** (32 octets,
+  `pkg.MachineSecret` → `~/.sentient-cli/machine.secret`, 0600) et la clé AES est
+  **dérivée par PBKDF2-HMAC-SHA256** (210 000 itérations, sel par message,
+  `pkg.EncryptVault`/`DecryptVault`). Aucun secret en dur dans le binaire.
+- **Update désactivable en CI** : `SENTIENT_CLI_SKIP_UPDATE` (ou `CI` posée sans
+  opt-in `SENTIENT_CLI_UPDATE`) coupe l'appel réseau (`pkg.update.skipUpdate`).
+- **Erreurs du challenge MFA remontées** : `mfa.go` ne masque plus un
+  `/api/mfa/challenge` en panne — l'erreur est rapportée avec le détail de la
+  vérification.
+- `NewStoreVolatile` = fallback isolé dans `/tmp` (secret aléatoire, ne pollue
+  plus `~/.sentient-cli` en test) ; `NewKeyStoreVolatile` (mort) supprimé.
 
 ### 4.2 Régressions de couverture spec (FR)
-- **FR-012 « conflit de version » non géré par `publish`** : le cas « version existante → bump SemVer »
-  (§5.6 étape 6) n'est pas implémenté (pas de gestion du code conflict côté prix).
-- **FR-014 `link`** : la spec exige de renseigner aussi métadonnées distantes absentes (ébauche §5.7) ;
-  seul le token est réécrit.
-- **FR-017/018 `audit`** : plusieurs règles spec absentes du code :
-  - `permissions` doit être un tableau (WARNING) — non vérifié ;
-  - `dependencies` installées (ERROR)/en double (WARNING) — le contrôle doublon est **mort** :
-    itération sur un `map[string]string` (auditor.go:190-201) qui ne peut jamais exposer 2 fois la clé ;
-  - assets : la doc (auditor.go:204) promet une vérif des assets référencés, le code ne teste que
-    « dossier non vide ».
-- **FR-016 `debug`** : la découverte du script de build lit le `package.json` **racine** du projet
-  (debugger.go:128-144) et échoue si module sans script → marqué `OK` sans aucun build réel. Heuristique
-  par `strings.Contains` fragile.
+- **FR-012 `publish`** ✅ : conflit de version géré — `POST` en échec (409 ou
+  message de conflit, `isVersionConflict`) ⇒ proposition interactive de bump
+  patch (`pkg.BumpPatch`), mise à jour locale du manifest, rebuild + republish
+  (jusqu'à 5 essais). Après succès : manifest local synchronisé avec la version
+  publiée + sync distante best-effort via `PUT /api/developer-store/modules/:id`
+  (`store.Client.UpdateModule`).
+- **FR-017/018 `audit`** ✅/partiel :
+  - `permissions` doit être un tableau (WARNING) — vérifié sur le JSON brut
+    (`rawPermissionsIsArray`, la struct `[]string` ne peut pas matérialiser un
+    JSON malformé) ;
+  - `dependencies` installées (ERROR) — la **boucle doublon morte** (itération
+    sur un `map[string]string`, impossibilité structurelle de doublon) est
+    remplacée par la vérification réelle `node_modules/<dep>` ;
+  - assets : toujours « dossier non vide » (WARNING).
+- **FR-016 `debug`** ✅ : `findBuildCommand` lit d'abord le `package.json` **du
+  module** puis la racine, avec un **vrai parsing JSON** des `scripts`
+  (fini le `strings.Contains` qui matchait `build` dans `build:prod`). Sans
+  script de build, statut **AVERTISSEMENT** (plus de faux « OK » sans build).
 
 ### 4.3 Heuristiques fragiles (fiabilité)
-- **`Validator.containsDefaultExport`** (validator.go:138) : regex `export\s+default\s+declaration`
-  ne matche QUE le texte littéral généré par `creator.go`. `export default function Foo` / `export default () =>`
-  échouent. → faux négatifs/positifs.
-- **SemVer checké par regex** (validator.go:132-136), pas de bibliothèque semver (version `*.x` gérée
-  à la main).
-- **Audit Clean Architecture par `strings.Contains`** sur les chemins d'import + heuristique
-  « `<`+`>`+`jsx/tsx` » (auditor.go:148) — pas de vrais parseurs TS/JSX.
-- **`Linker.LinkedModules`** : distinction local/distant par **format de chaîne** (UUID ⇒ local,
-  non-UUID ⇒ distant) (linker.go:94-95) — fragile si les tokens distants changent de format.
+- **`Validator.containsDefaultExport`** ✅ : regex élargie
+  `export default` + (déclaration | `function Foo` | `async () =>` | `() =>` |
+  `class Foo` | `{…}`) ; ne matche plus `export { default } from …`.
+- **SemVer** ✅ : regex stricte SemVer 2.0.0 (zéro non significatif rejeté,
+  pré-release/meta gérés) ; `pkg.BumpPatch` pour l'incrément patch.
+- **Audit Clean Architecture** ✅/partiel : services→JSX affiné avec une regex
+  de balises JSX (`jsxTagRE`) qui ignore `Array<string>` tout en attrapant
+  `</div>`, `<Foo/>`, `<div className=…/>`. Pas de vrai parseur TS/JSX.
+- **`Linker.LinkedModules`** ✅ : les liaisons sont persistées dans
+  `.sentients/links.json` (nom → token distant) ; la distinction local/distant
+  ne repose plus sur le format de chaîne du token (un token distant au format
+  UUID est désormais reconnu). Pont de migration vers l'ancienne heuristique
+  conservé pour les projets liés avant l'état.
 
-### 4.4 Divers
-- `signing.SignResult` — type exporté **jamais utilisé** (dead code).
-- `APIError.Error()` (http.go:93-98) : branches `if/else` identiques (code mort).
-- `checkForUpdate` : appel réseau non désactivable en CI (pas d'env pour couper).
-- Prompt TUI : couleurs `#A855F7`/`#FFFFFF` dupliquées hors palette (prompts.go:187-189, styles.go:89).
-- `creator.go:77` : la `description` est ignorée dans le `index.tsx` généré (toujours `""`).
-- `manifest.go` : `widgets`/`routines`/`menu` restent des `json.RawMessage` opaques (schéma non modélisé).
-- `disconnect` : pas d'appel API de mise à jour `PUT /store/modules/:token` (la spec en liste un §8.1).
+### 4.4 Schéma & présentation — ✅ traité à l'itération du 2026-09-12 (bis)
+- **`widgets`/`routines`/`menu` modélisés** : `manifest.go` remplace les
+  `json.RawMessage` opaques par les types `Widget`, `Routine` et
+  `MenuItem` (`Menu.Items`) — sérialisation `[]` préservée, round-trip testé.
+- **Couleurs TUI unifiées** : plus de hex hardcodés hors palette — le
+  sélecteur (`prompts.go`) utilise `palette.accent` pour l'item sélectionné et
+  le défaut terminal pour les items normaux (fini le blanc figé, illisible en
+  thème clair) ; `TableRow` passe en `muted` (adapté light/dark). Seul
+  `ErrorBar` garde un blanc sur fond coloré (contraste, pas une couleur de
+  palette).
 
 ---
 
@@ -164,26 +212,33 @@ La spec découpe 3 releases. État actuel : quasi tout le « MVP » et le « Sto
 `pack` ✅ · `-v`/`help` ✅
 
 ### Release 0.2.0 (Store) — ✅ largement faite
-`publish` ✅ · `link` ✅/partiel · `unlink` ✅ · `audit` ✅/partiel · `debug` ✅/partiel ·
-`sign keygen/sign/verify` ✅
+`publish` ✅ (dont conflit SemVer + PUT) · `link` ✅/partiel · `unlink` ✅ · `audit` ✅/partiel ·
+`debug` ✅/partiel · `sign keygen/sign/verify` ✅
 
 ### Release 0.3.0 (Qualité) — ⏳ à faire
 - S-013 mode verbose/logs ✅ déjà présent (`--verbose`, `SENTIENT_CLI_DEBUG`).
 - S-014 config `.sentient-cli.toml` ✅ déjà présente.
-- S-015 auto-update ✅ partiel (notification seule, pas de download).
-- S-016/017/018 tests unitaires + E2E (testscript) + CI — unitaires ✅, **E2E absents**, CI ✅.
+- S-015 auto-update ✅ partiel (notification seule, pas de download ; désactivable en CI).
+- S-016/017/018 tests unitaires + E2E (testscript) + CI — unitaires ✅ (10 packages), **E2E absents**, CI ✅.
 
 ### Prochaines itérations proposées (par priorité)
-1. **Sécurité/robustesse** : activer le fallback keychain↔fichier chiffré avec détection réelle ;
-   remplacer les passphrases dures par une dérivation (KDF) ; désactivable update en CI.
-2. **Corriger le code mort / incomplet** : doublons-deps audit, contrôle `permissions` array,
-   `SignResult`, branches identiques `APIError.Error()`, description dans `index.tsx`.
-3. **Fiabiliser l'audit & validator** : regex default-export élargie, parseur minimal pour les
-   heuristiques d'architecture, semver via bibliothèque.
-4. **`publish` env.** : gestion du conflit de version (bump SemVer), `PUT /store/modules/:token`.
-5. **`debug` env.** : build réel des modules, découverte du script dans le `package.json` du module
-   (pas de la racine).
-6. **Telese spec** : `sentients test <module>`, `sentients watch` (hot-reload), `sentients deploy`,
+1. **Sécurité/robustesse** — ✅ fait au 2026-09-12 : fallback keychain↔fichier chiffré
+   avec détection réelle, secret machine aléatoire + PBKDF2 (plus de passphrases dures),
+   update désactivable en CI, erreurs MFA remontées.
+2. **Code mort / incomplet** — ✅ fait : doublons-deps audit remplacés par « deps
+   installées », `permissions` array, `SignResult` supprimé, `APIError.Error()`,
+   description dans `index.tsx`.
+3. **Fiabiliser l'audit & validator** — ✅/partiel : regex default-export élargie,
+   semver strict + `BumpPatch`, heuristique JSX services affinée.
+4. **`publish` env.** — ✅ fait : conflit de version (bump SemVer) + pipeline developer-store
+   (produit → version → artefact) + synchronisation du manifest local (version + token produit).
+5. **`debug` env.** — ✅/partiel : script du `package.json` du module (parsing JSON,
+   repli racine), plus de faux « OK » sans build réel.
+6. **Candidats restants** :
+   - testscript E2E (S-017) + CI sur scénarios TC-001 → TC-025 ;
+   - `disconnect`/`unlink` : option de mise à jour distante via `PUT /api/developer-store/modules/:id` ;
+   - bâtir un vrai build de module dans `debug` (au-delà du `package.json`).
+7. **Telese spec** : `sentients test <module>`, `sentients watch` (hot-reload), `sentients deploy`,
    `sentients auth` (OAuth2 PKCE), `sentients marketplace` (§2.4 future scope).
 
 ---
@@ -198,5 +253,5 @@ go vet ./...
 goreleaser release --clean   # release multi-plateforme
 ```
 
-Couverture de test : 9 packages ok (`internal/audit`, `auth`, `config`, `debug`, `module`, `pkg`,
-`signing`, `store`, `tui`). `cmd/` n'a pas de tests dédiés (supprimés en 8b243d1).
+Couverture de test : 10 packages ok (`internal/audit`, `auth`, `config`, `debug`, `module`, `pkg`,
+`signing`, `store`, `tui` + `cmd/` avec `publish_test.go` sur la détection de conflit SemVer).
