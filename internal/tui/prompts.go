@@ -2,6 +2,7 @@ package tui
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
@@ -253,10 +254,18 @@ func (m confirmModel) View() string {
 	return s.Accent.Render("? "+m.title) + " (oui/non) [" + s.Info.Render(dflt) + "] : \n"
 }
 
+// ConfirmYesEnv forces confirmations to succeed in non-interactive runs
+// (`SENTIENT_CLI_YES` non-empty) — the CI pattern mentioned in spec §5.13.1.
+const ConfirmYesEnv = "SENTIENT_CLI_YES"
+
 // Confirm asks a yes/no question. defYes is the answer given by pressing
-// strictly <enter>.
+// strictly <enter>. In non-interactive runs the answer comes from
+// `SENTIENT_CLI_YES` (truthy → oui, empty → erreur explicite).
 func Confirm(title string, defYes bool) (bool, error) {
 	if !IsInteractive() {
+		if os.Getenv(ConfirmYesEnv) != "" {
+			return true, nil
+		}
 		return false, RequireInteractive("La confirmation")
 	}
 	m := confirmModel{title: title, defYes: defYes}

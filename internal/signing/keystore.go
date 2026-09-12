@@ -42,8 +42,15 @@ type fallbackKeyStore struct {
 
 // NewKeyStore returns the appropriate key store for the platform. The system
 // keychain is used when reachable; otherwise the CLI transparently falls back
-// to an encrypted vault file (spec §7.6, risk R-002).
+// to an encrypted vault file (spec §7.6, risk R-002). `SENTIENT_CLI_STORE` can
+// force either backend for CI/headless runs (see auth.StoreEnv).
 func NewKeyStore() KeyStore {
+	switch os.Getenv("SENTIENT_CLI_STORE") {
+	case "file":
+		return newFallbackKeyStore(defaultKeyStorePath())
+	case "keychain":
+		return &keyringKeyStore{}
+	}
 	if keychainAvailable() {
 		return &keyringKeyStore{}
 	}

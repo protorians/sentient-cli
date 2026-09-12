@@ -3,6 +3,7 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -51,20 +52,35 @@ func runConnect(cmd *cobra.Command) error {
 		}
 	}
 
-	// Credentials input
+	// Credentials input. In non-interactive (CI) mode the values come from
+	// the environment (SENTIENT_CLI_CONNECT_EMAIL/PASSWORD/MFA_CODE) — the
+	// same pattern as `SENTIENT_CLI_YES`.
 	email := ""
-	if value, err := askOptionalText("Email", ""); err != nil {
-		return err
-	} else {
+	if tui.IsInteractive() {
+		value, err := tui.AskText("Email", "")
+		if err != nil {
+			return err
+		}
 		email = strings.TrimSpace(value)
+	} else {
+		email = strings.TrimSpace(os.Getenv("SENTIENT_CLI_CONNECT_EMAIL"))
 	}
 	if email == "" {
 		return pkg.NewError("Authentification", "l'email est obligatoire", pkg.ExitAuth)
 	}
 
-	password, err := tui.AskSecret("Mot de passe")
-	if err != nil {
-		return err
+	password := ""
+	if tui.IsInteractive() {
+		value, err := tui.AskSecret("Mot de passe")
+		if err != nil {
+			return err
+		}
+		password = value
+	} else {
+		password = os.Getenv("SENTIENT_CLI_CONNECT_PASSWORD")
+	}
+	if password == "" {
+		return pkg.NewError("Authentification", "le mot de passe est obligatoire", pkg.ExitAuth)
 	}
 
 	connector := auth.NewConnector()
@@ -113,6 +129,10 @@ func runMFA(ctx context.Context, authn *auth.Authenticator) (*auth.VerifyRespons
 			label = "Code de récupération"
 		}
 		if !tui.IsInteractive() {
+			// CI: read the verification code from the environment.
+			if code := os.Getenv("SENTIENT_CLI_MFA_CODE"); code != "" {
+				return code, nil
+			}
 			return "", pkg.NewError("MFA", "cette exécution nécessite un terminal interactif pour la vérification MFA", pkg.ExitMFA)
 		}
 		return tui.AskText(label, "")
@@ -134,13 +154,6 @@ func classifyConnectorError(category string, err error, fix string) error {
 	}
 	return pkg.NewErrorWithFix("Réseau", err.Error(),
 		"Vérifiez votre connexion internet et la disponibilité de sentient-connect.", pkg.ExitNetwork)
-}
-
-func askOptionalText(title, placeholder string) (string, error) {
-	if tui.IsInteractive() {
-		return tui.AskText(title, placeholder)
-	}
-	return "", nil
 }
 
 func printConnectSummary(session *auth.Session) {

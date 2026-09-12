@@ -171,6 +171,16 @@ func (l *Linker) LinkedModules() ([]string, error) {
 	return names, nil
 }
 
+// RemoteToken returns the remote store token associated with a local module
+// through the links state ("" when not linked).
+func (l *Linker) RemoteToken(name string) string {
+	if name == "" {
+		return ""
+	}
+	state := l.loadLinks()
+	return state.Modules[name]
+}
+
 // linksPath returns the project-local links state file path.
 func (l *Linker) linksPath() string {
 	return filepath.Join(l.Root, config.SentientDir, linksFileName)

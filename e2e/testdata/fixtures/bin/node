@@ -1,0 +1,4 @@
+#!/bin/sh
+# Fixture `node` for the E2E suite.
+echo "[fixture] node" 1>&2
+exit 0

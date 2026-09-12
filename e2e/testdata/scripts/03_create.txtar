@@ -1,0 +1,28 @@
+mkdir project
+cd project
+mkdir external_modules
+exec sh -c 'printf "app = \"demo\"\n" > sentient.config.toml'
+
+# TC-003 — nom invalide : rejeté (exit 1) avec message explicite.
+! exec $SENTIENTS --no-color create module Foo
+stderr 'kebab-case'
+exec sh -c '"$SENTIENTS" --no-color create module Foo >/dev/null 2>&1; echo $?'
+stdout '^1$'
+
+# TC-004 — nom valide : structure complète générée.
+exec $SENTIENTS --no-color create module blog-manager
+stdout 'Module créé'
+stdout 'Token généré'
+stdout 'manifest.json initialisé'
+stdout 'index.tsx initialisé'
+
+cd external_modules/blog-manager
+exists manifest.json
+exists index.tsx
+exists README.md
+exists components
+exists hooks
+exists services
+exec grep -q '"version": "0.1.0"' manifest.json
+exec grep -q '"name": "Blog Manager"' manifest.json
+exec grep -q '"id": "blog-manager"' manifest.json

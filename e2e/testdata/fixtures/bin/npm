@@ -1,0 +1,23 @@
+#!/bin/sh
+# Fixture `npm` for the E2E suite.
+if [ "$1" = "run" ]; then
+  shift
+  name="$1"
+  shift
+  case "$name" in
+    debug|dev|build)
+      echo "[fixture] npm run $name (ok)"
+      exit 0
+      ;;
+    *)
+      echo "[fixture] npm run $name (script introuvable)"
+      exit 1
+      ;;
+  esac
+fi
+if [ "$1" = "install" ]; then
+  echo "[fixture] npm install (ok)"
+  exit 0
+fi
+echo "[fixture] npm $*"
+exit 0

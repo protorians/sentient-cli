@@ -1,0 +1,9 @@
+#!/bin/sh
+# Fixture `tsc` for the E2E suite: a deterministic type-check stand-in.
+# It fails when a source file contains the marker "typescript-error".
+if grep -rqs "typescript-error" .; then
+  echo "error TS9999: typescript-error marker found" 1>&2
+  exit 2
+fi
+echo "[fixture] tsc --noEmit (ok)"
+exit 0

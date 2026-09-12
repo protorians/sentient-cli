@@ -36,6 +36,20 @@ jobs:
           path: coverage.out
           retention-days: 5
 
+  e2e:
+    name: E2E testscript (TC-001 → TC-025)
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: E2E scenarios
+        run: go test ./e2e/ -run TestScripts -count=1 -v
+
   lint:
     name: Lint
     runs-on: ubuntu-latest

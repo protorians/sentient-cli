@@ -1,0 +1,23 @@
+#!/bin/sh
+# Fixture `bun` for the E2E suite: installs and runs "scripts" deterministically.
+if [ "$1" = "run" ]; then
+  shift
+  name="$1"
+  shift
+  case "$name" in
+    debug|dev|build)
+      echo "[fixture] bun run $name (ok)"
+      exit 0
+      ;;
+    *)
+      echo "[fixture] bun run $name (script introuvable)"
+      exit 1
+      ;;
+  esac
+fi
+if [ "$1" = "install" ]; then
+  echo "[fixture] bun install (ok)"
+  exit 0
+fi
+echo "[fixture] bun $*"
+exit 0

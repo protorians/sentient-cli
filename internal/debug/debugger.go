@@ -65,6 +65,12 @@ func (d *Debugger) DebugModule(name string) (*DebugResult, error) {
 	// Look for a debug or build script, preferring the module's own
 	// package.json over the project root one.
 	build := d.findBuildCommand(pm, moduleDir)
+	if build == nil {
+		// Fallback to a real TypeScript type-check when the module contains
+		// TS/TSX sources and a tsconfig + tsc are resolvable — beyond the
+		// package.json scripts (spec §5.9 "Exécuter le build du module").
+		build = d.findTypeCheckCommand(moduleDir)
+	}
 	if build != nil {
 		output, err := d.runCommand(build.dir, build.cmd)
 		if err != nil {
@@ -86,7 +92,7 @@ func (d *Debugger) DebugModule(name string) (*DebugResult, error) {
 		// "OK" hid the absence of any real compilation).
 		result.Status = "AVERTISSEMENT"
 		result.Logs = append(result.Logs,
-			"aucun script de build (debug/dev/build) trouvé — validation seule effectuée")
+			"aucun script de build (debug/dev/build) ni type-check TypeScript trouvé — validation seule effectuée")
 	}
 
 	return result, nil
@@ -174,6 +180,69 @@ func packageScript(path, name string) (string, bool) {
 	}
 	v, ok := nodePackage.Scripts[name]
 	return v, ok
+}
+
+// findTypeCheckCommand locates a real TypeScript type-check for the module:
+// a resolvable `tsc` binary (root node_modules/.bin, module node_modules/.bin
+// or PATH) plus a tsconfig to drive it (module-level preferred, root as
+// fallback). Without a tsconfig the compiler cannot know the project layout,
+// so no type-check is attempted.
+func (d *Debugger) findTypeCheckCommand(moduleDir string) *buildCommand {
+	if !moduleHasTS(moduleDir) {
+		return nil
+	}
+
+	// tsconfig resolution: the module's own tsconfig, if any, else the root one.
+	configDir := ""
+	for _, candidate := range []string{
+		filepath.Join(moduleDir, "tsconfig.json"),
+		filepath.Join(d.Root, "tsconfig.json"),
+	} {
+		if pkg.FileExists(candidate) {
+			configDir = filepath.Dir(candidate)
+			break
+		}
+	}
+	if configDir == "" {
+		return nil
+	}
+
+	// tsc binary resolution: package-local, then PATH.
+	for _, bin := range []string{
+		filepath.Join(d.Root, "node_modules", ".bin", "tsc"),
+		filepath.Join(moduleDir, "node_modules", ".bin", "tsc"),
+	} {
+		if pkg.FileExists(bin) {
+			return &buildCommand{cmd: []string{bin, "--noEmit"}, dir: configDir}
+		}
+	}
+	if pkg.HasCommand("tsc") {
+		return &buildCommand{cmd: []string{"tsc", "--noEmit"}, dir: configDir}
+	}
+	return nil
+}
+
+// moduleHasTS reports whether the module directory contains any TypeScript
+// source file (.ts or .tsx), excluding node_modules.
+func moduleHasTS(moduleDir string) bool {
+	found := false
+	filepath.WalkDir(moduleDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil || found {
+			return nil
+		}
+		if d.IsDir() {
+			if d.Name() == "node_modules" || d.Name() == ".git" {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		ext := strings.ToLower(filepath.Ext(d.Name()))
+		if ext == ".ts" || ext == ".tsx" {
+			found = true
+		}
+		return nil
+	})
+	return found
 }
 
 func (d *Debugger) runCommand(dir string, args []string) (string, error) {

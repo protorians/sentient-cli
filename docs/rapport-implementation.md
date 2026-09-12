@@ -23,6 +23,7 @@ Architecture respectée (TECH-006) : `cmd/` (Cobra, présentation) → `internal
 | 13 commandes Cobra (11 de la spec + `sign` à 3 sous-commandes + helper) | ✅ implémentées |
 | 10 packages internes (`auth`, `config`, `module`, `signing`, `audit`, `debug`, `store`, `tui`, `pkg`) | ✅ présents |
 | Tests unitaires (`go test ./...`) | ✅ verts (9 packages ok) |
+| E2E testscript (`go test ./e2e/ -run TestScripts`) | ✅ verts — 10 scénarios, TC-001 → TC-025 (mock `sentient-connect` in-memory) |
 | CI/CD GoReleaser + package npm (`@sentients/cli`) | ✅ en place (releases v0.0.1 → v0.0.7) |
 | Messages d'erreur français + codes de sortie spec (§11.1) | ✅ respectés |
 
@@ -135,6 +136,15 @@ ont une implémentation (parfois partielle). Le reste des FR (001→024) est cou
 > l'API developer-store `POST /api/developer-store/modules/**` (pipeline
 > produit → version → artefact avec checksum SHA-256 + signature) ; tests et
 > spec §8.1/§8.2 réalignés.
+>
+> Itération du 2026-09-12 (quater) : **suite E2E testscript** — harnais `e2e/`
+> (binaire construit depuis la racine, mock `sentient-connect` in-memory
+> **isolé par scénario**, README des scripts), 10 scénarios `01_help_version`
+> → `10_link_unlink` couvrant TC-001 → TC-025 avec les codes de sortie
+> (§11.1), fixtures `bun/npm/tsc/node`, HOME writable par script (vault
+> chiffré), `--no-color` pour des assertions stables ; job CI `e2e` ajouté.
+> Prod-ids du mock en UUID (alignés sur le store réel) → le republish passe
+> la validation du token et atteint le conflit de version (TC-012, exit 11).
 
 ### 4.1 Sécurité — ✅ corrigé à l'itération du 2026-09-12
 - **Fallback keychain → fichier chiffré activé** : `auth.NewStore()` et
@@ -219,7 +229,8 @@ La spec découpe 3 releases. État actuel : quasi tout le « MVP » et le « Sto
 - S-013 mode verbose/logs ✅ déjà présent (`--verbose`, `SENTIENT_CLI_DEBUG`).
 - S-014 config `.sentient-cli.toml` ✅ déjà présente.
 - S-015 auto-update ✅ partiel (notification seule, pas de download ; désactivable en CI).
-- S-016/017/018 tests unitaires + E2E (testscript) + CI — unitaires ✅ (10 packages), **E2E absents**, CI ✅.
+- S-016/017/018 tests unitaires + E2E (testscript) + CI — unitaires ✅ (10 packages), **E2E ✅** (10 scénarios
+  txtar, TC-001 → TC-025, mock `sentient-connect` in-memory), **CI ✅** (job `e2e`).
 
 ### Prochaines itérations proposées (par priorité)
 1. **Sécurité/robustesse** — ✅ fait au 2026-09-12 : fallback keychain↔fichier chiffré
@@ -235,8 +246,11 @@ La spec découpe 3 releases. État actuel : quasi tout le « MVP » et le « Sto
 5. **`debug` env.** — ✅/partiel : script du `package.json` du module (parsing JSON,
    repli racine), plus de faux « OK » sans build réel.
 6. **Candidats restants** :
-   - testscript E2E (S-017) + CI sur scénarios TC-001 → TC-025 ;
-   - `disconnect`/`unlink` : option de mise à jour distante via `PUT /api/developer-store/modules/:id` ;
+   - testscript E2E (S-017) + CI sur scénarios TC-001 → TC-025 — ✅ fait : `e2e/` (mock
+     `sentient-connect` in-memory, 10 scénarios `01_help_version` → `10_link_unlink` couvrant
+     TC-001 → TC-025, fixtures `bun/npm/tsc/node`, job CI `e2e`) ;
+   - `disconnect`/`unlink` : option de mise à jour distante via `PUT /api/developer-store/modules/:id` (✅
+     `unlink --sync-remote` couvert par TC-014) ;
    - bâtir un vrai build de module dans `debug` (au-delà du `package.json`).
 7. **Telese spec** : `sentients test <module>`, `sentients watch` (hot-reload), `sentients deploy`,
    `sentients auth` (OAuth2 PKCE), `sentients marketplace` (§2.4 future scope).
@@ -248,10 +262,13 @@ La spec découpe 3 releases. État actuel : quasi tout le « MVP » et le « Sto
 ```bash
 go build -o sentients .
 ./sentients --help
-go test ./...
+go test ./...              # unitaires + E2E testscript (TC-001 → TC-025)
+go test ./e2e/ -run TestScripts -v   # suite E2E seule
 go vet ./...
 goreleaser release --clean   # release multi-plateforme
 ```
 
-Couverture de test : 10 packages ok (`internal/audit`, `auth`, `config`, `debug`, `module`, `pkg`,
-`signing`, `store`, `tui` + `cmd/` avec `publish_test.go` sur la détection de conflit SemVer).
+Couverture de test : unitaires ✅ (10 packages ok) + **E2E ✅** (`e2e/` : `TestMain` construit la CLI
+depuis la racine repo, mock `sentient-connect` in-memory dans `e2e/mockapi/`, 10 scripts txtar
+`e2e/testdata/scripts/01_help_version.txtar` → `10_link_unlink.txtar` couvrant TC-001 → TC-025, fixtures
+exécutables `e2e/testdata/fixtures/bin/{bun,npm,tsc,node}`, job CI `e2e`).

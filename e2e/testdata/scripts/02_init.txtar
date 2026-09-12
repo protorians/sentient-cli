@@ -1,0 +1,31 @@
+# TC-001 — `sentients init` avec bun détecté (fixture sur le PATH) et template
+# local (SENTIENT_CLI_TEMPLATE_REPO) pour rester hors réseau.
+mkdir template
+cd template
+exec git init -q
+exec git config user.email test@example.com
+exec git config user.name 'Test'
+mkdir external_modules
+exec sh -c 'echo keep > external_modules/.gitkeep'
+exec sh -c 'printf "app = \"template\"\n" > sentient.config.toml'
+exec sh -c 'printf "{\"name\":\"sentient-cms\",\"scripts\":{\"dev\":\"vite\",\"build\":\"tsc\"}}\n" > package.json'
+exec git add -A
+exec git commit -qm 'template'
+cd $WORK
+
+env SENTIENT_CLI_TEMPLATE_REPO=$WORK/template
+exec $SENTIENTS --no-color init demo-app
+stdout '✓ Projet initialisé avec succès'
+stdout 'Gestionnaire : bun'
+
+cd demo-app
+exists .sentient-cli.toml
+exists external_modules
+exec grep -q 'auto_audit' .sentient-cli.toml
+cd $WORK
+
+# TC-002 — aucun gestionnaire de paquets détecté : refus explicite (exit 1),
+# avant tout clone réseau.
+env PATH=/nonexistent
+! exec $SENTIENTS --no-color init nomanager
+stderr 'aucun gestionnaire de paquets détecté'

@@ -16,13 +16,13 @@ const (
 	ServiceName = "sentient-cli"
 	prefix      = "sentient-cli."
 
-	KeyAccessToken  = prefix + "access_token"
-	KeyMFAToken     = prefix + "mfa_token"
-	KeyDevice       = prefix + "device"
-	KeyExpiresAt    = prefix + "expires_at"
-	KeyUserID       = prefix + "user_id"
-	KeyUserEmail    = prefix + "user_email"
-	KeyMFASecret    = prefix + "mfa_secret"
+	KeyAccessToken = prefix + "access_token"
+	KeyMFAToken    = prefix + "mfa_token"
+	KeyDevice      = prefix + "device"
+	KeyExpiresAt   = prefix + "expires_at"
+	KeyUserID      = prefix + "user_id"
+	KeyUserEmail   = prefix + "user_email"
+	KeyMFASecret   = prefix + "mfa_secret"
 	// KeyRefreshTokenLegacy was dropped from the session model (single-token
 	// sessions). Kept in AllKeys so stale keychain entries are purged on
 	// disconnect.
@@ -66,10 +66,22 @@ type fallbackStore struct {
 	mu     sync.Mutex
 }
 
+// StoreEnv forces the credential backend in headless/CI runs
+// (`SENTIENT_CLI_STORE=file` → encrypted vault, `=keychain` → OS keychain).
+// An empty value keeps the automatic platform probe.
+const StoreEnv = "SENTIENT_CLI_STORE"
+
 // NewStore returns the appropriate credential store for the platform. The
 // system keychain is used when reachable; otherwise the CLI transparently
 // falls back to a vault file encrypted with the per-user machine secret.
+// `SENTIENT_CLI_STORE` can force either backend for CI/headless runs.
 func NewStore() Store {
+	switch os.Getenv(StoreEnv) {
+	case "file":
+		return newFallbackStore(defaultFallbackPath())
+	case "keychain":
+		return &keyringStore{}
+	}
 	if keychainAvailable() {
 		return &keyringStore{}
 	}

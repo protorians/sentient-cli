@@ -1,0 +1,47 @@
+# TC-005 / TC-007 / TC-008 / TC-011 / TC-012 — flux réseau complet contre le
+# mock sentient-connect (SENTIENT_CONNECT_API).
+mkdir project
+cd project
+mkdir external_modules
+exec sh -c 'printf "[publish]\nauto_audit = false\n" > .sentient-cli.toml'
+exec $SENTIENTS --no-color create module blog-manager
+
+# TC-007 — mauvais identifiants : échec explicite (exit 2 / ExitAuth).
+env SENTIENT_CLI_CONNECT_EMAIL=invalid@example.com
+env SENTIENT_CLI_CONNECT_PASSWORD=wrong
+! exec $SENTIENTS --no-color connect
+stderr 'Identifiants invalides'
+exec sh -c '"$SENTIENTS" --no-color connect >/dev/null 2>&1; echo $?'
+stdout '^2$'
+
+# TC-005 — connexion sans MFA : session persistée.
+env SENTIENT_CLI_CONNECT_EMAIL=dev@example.com
+env SENTIENT_CLI_CONNECT_PASSWORD=secret
+exec $SENTIENTS --no-color connect
+stdout '✓ Connecté en tant que dev@example.com'
+exists $HOME/.sentient-cli/credentials.enc
+
+# TC-008 — déconnexion (auto-confirm SENTIENT_CLI_YES) : credentials supprimées.
+env SENTIENT_CLI_YES=1
+exec $SENTIENTS --no-color disconnect
+stdout '✓ Déconnecté avec succès'
+! exec test -e $HOME/.sentient-cli/credentials.enc
+
+# Re-connexion pour TC-011/TC-012.
+env SENTIENT_CLI_CONNECT_EMAIL=dev@example.com
+env SENTIENT_CLI_CONNECT_PASSWORD=secret
+exec $SENTIENTS --no-color connect
+stdout '✓ Connecté en tant que dev@example.com'
+
+# TC-011 — publication : produit créé + version + artefact ; token distante
+# synchronisée dans le manifest.
+exec $SENTIENTS --no-color publish blog-manager
+stdout '✓ Publié avec succès'
+stdout 'URL : https://store.sentient.dev/modules/blog-manager'
+exec grep -q '"token": "[0-9a-f-]' external_modules/blog-manager/manifest.json
+
+# TC-012 — même version déjà publiée : conflit 409 (exit 11 / ExitPublish).
+! exec $SENTIENTS --no-color publish blog-manager
+stderr 'Une version identique existe déjà'
+exec sh -c '"$SENTIENTS" --no-color publish blog-manager >/dev/null 2>&1; echo $?'
+stdout '^11$'

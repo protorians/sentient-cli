@@ -1,0 +1,27 @@
+mkdir project
+cd project
+mkdir external_modules
+exec sh -c 'printf "app = \"demo\"\n" > sentient.config.toml'
+exec $SENTIENTS --no-color create module matcher
+exec $SENTIENTS --no-color create module runner
+
+# TC-015 — `debug` d'un module unique : build script détecté → OK.
+exec sh -c 'printf "{\"name\":\"runner\",\"version\":\"0.1.0\",\"scripts\":{\"build\":\"tsc\"}}\n" > external_modules/runner/package.json'
+exec $SENTIENTS --no-color debug runner
+stderr 'Debug : runner'
+stdout 'Statut : ✓ OK'
+stdout 'bun run build'
+
+# Module sans script de build mais avec TypeScript → fallback tsc --noEmit → OK.
+exec sh -c 'printf "export const helper: number = 42;\n" > external_modules/matcher/helper.ts'
+exec sh -c 'printf "{\"compilerOptions\":{}}\n" > tsconfig.json'
+exec $SENTIENTS --no-color debug matcher
+stderr 'Debug : matcher'
+stdout 'Statut : ✓ OK'
+stdout 'tsc --noEmit'
+
+# TC-016 — `debug` sans argument : rapport de tous les modules (table).
+exec $SENTIENTS --no-color debug
+stderr 'Debug de tous les modules'
+stdout 'matcher'
+stdout 'runner'

@@ -13,7 +13,15 @@ import (
 )
 
 // templateRepo is the repository cloned by `sentients init` (spec FR-002).
-const templateRepo = "https://github.com/protorians/sentient-cms"
+// `SENTIENT_CLI_TEMPLATE_REPO` overrides it (useful for tests and mirrors).
+const defaultTemplateRepo = "https://github.com/protorians/sentient-cms"
+
+func templateRepo() string {
+	if v := os.Getenv("SENTIENT_CLI_TEMPLATE_REPO"); v != "" {
+		return v
+	}
+	return defaultTemplateRepo
+}
 
 // packageManagers is the detection + install order for `sentients init`.
 var packageManagers = []struct {
@@ -135,7 +143,7 @@ func runInit(cmd *cobra.Command, args []string) error {
 
 	// Step 3 — clone (shallow)
 	if _, err := tui.RunWithSpinner("Clonage de sentient-cms", func() (struct{}, error) {
-		return struct{}{}, pkg.CloneShallow(templateRepo, targetDir)
+		return struct{}{}, pkg.CloneShallow(templateRepo(), targetDir)
 	}); err != nil {
 		return pkg.NewErrorWithFix("Réseau", err.Error(),
 			"Vérifiez votre connexion et que 'git' est installé.", pkg.ExitNetwork)
