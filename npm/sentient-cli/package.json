@@ -13,7 +13,7 @@
     "url": "https://github.com/protorians/sentient-cli/issues"
   },
   "bin": {
-    "sentient": "bin/sentient"
+    "sentients": "bin/sentients"
   },
   "scripts": {
     "postinstall": "node lib/install.js"

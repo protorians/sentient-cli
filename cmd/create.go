@@ -18,7 +18,7 @@ standardisée : manifest.json, index.tsx, components/, hooks/, services/.
 
 Le token UUID unique du module est généré automatiquement.
 
-Usage : sentient create module [nom]`,
+Usage : sentients create module [nom]`,
 	Args: cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runCreate(cmd, args)
@@ -31,7 +31,7 @@ func runCreate(cmd *cobra.Command, args []string) error {
 		args = args[1:]
 	}
 	if len(args) > 1 {
-		return pkg.NewError("Module", "trop d'arguments — utilisez 'sentient create module [nom]'", pkg.ExitError)
+		return pkg.NewError("Module", "trop d'arguments — utilisez 'sentients create module [nom]'", pkg.ExitError)
 	}
 
 	root, err := requireProjectRoot()
@@ -83,8 +83,8 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	fmt.Println(s.Success.Render("✓ index.tsx initialisé"))
 	fmt.Println()
 	fmt.Println(s.SubHeader.Render("Prochaines étapes :"))
-	fmt.Println(s.Info.Render("  sentient connect"))
-	fmt.Println(s.Info.Render("  sentient pack " + result.Name))
-	fmt.Println(s.Info.Render("  sentient publish"))
+	fmt.Println(s.Info.Render("  sentients connect"))
+	fmt.Println(s.Info.Render("  sentients pack " + result.Name))
+	fmt.Println(s.Info.Render("  sentients publish"))
 	return nil
 }

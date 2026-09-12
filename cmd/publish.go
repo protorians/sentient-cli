@@ -39,7 +39,7 @@ func runPublish(cmd *cobra.Command, args []string) error {
 	if err != nil || sess == nil || !sess.IsAuthenticated() {
 		return pkg.NewErrorWithFix("Authentification",
 			"vous devez être connecté pour publier un module",
-			"Exécutez 'sentient connect' d'abord.", pkg.ExitAuth)
+			"Exécutez 'sentients connect' d'abord.", pkg.ExitAuth)
 	}
 
 	email := ""
@@ -76,7 +76,7 @@ func runPublish(cmd *cobra.Command, args []string) error {
 			if !tui.IsInteractive() {
 				return pkg.NewErrorWithFix("Audit",
 					fmt.Sprintf("le module %q contient %d erreur(s) d'audit", name, errs),
-					"Corrigez les erreurs puis réessayez, ou exécutez 'sentient audit "+name+"'.",
+					"Corrigez les erreurs puis réessayez, ou exécutez 'sentients audit "+name+"'.",
 					pkg.ExitError)
 			}
 			continueAnyway, cerr := tui.Confirm("Publier malgré les erreurs d'audit", false)

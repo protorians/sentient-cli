@@ -69,7 +69,7 @@ func printSigningFingerprint() error {
 	if err != nil {
 		return pkg.NewErrorWithFix("Signature",
 			"aucune clé de signature trouvée dans le keychain",
-			"Exécutez 'sentient sign keygen' pour générer une paire de clés.",
+			"Exécutez 'sentients sign keygen' pour générer une paire de clés.",
 			pkg.ExitSigning)
 	}
 
@@ -144,7 +144,7 @@ func signModule(args []string) error {
 	if err != nil {
 		return pkg.NewErrorWithFix("Signature",
 			err.Error(),
-			"Exécutez 'sentient pack "+name+"' pour construire l'archive d'abord.",
+			"Exécutez 'sentients pack "+name+"' pour construire l'archive d'abord.",
 			pkg.ExitSigning)
 	}
 
@@ -169,7 +169,7 @@ func signModule(args []string) error {
 	if err != nil {
 		return pkg.NewErrorWithFix("Signature",
 			"clé de signature introuvable : "+err.Error(),
-			"Exécutez 'sentient sign keygen' pour générer une paire de clés.",
+			"Exécutez 'sentients sign keygen' pour générer une paire de clés.",
 			pkg.ExitSigning)
 	}
 
@@ -211,7 +211,7 @@ func verifySignature(args []string) error {
 	if err != nil {
 		return pkg.NewErrorWithFix("Signature",
 			err.Error(),
-			"Exécutez 'sentient pack "+name+"' pour construire l'archive d'abord.",
+			"Exécutez 'sentients pack "+name+"' pour construire l'archive d'abord.",
 			pkg.ExitSigning)
 	}
 
@@ -219,7 +219,7 @@ func verifySignature(args []string) error {
 	if !pkg.FileExists(sigPath) {
 		return pkg.NewErrorWithFix("Signature",
 			fmt.Sprintf("fichier de signature introuvable : %s", sigPath),
-			"Exécutez 'sentient sign "+name+"' pour signer l'archive.",
+			"Exécutez 'sentients sign "+name+"' pour signer l'archive.",
 			pkg.ExitSigning)
 	}
 
@@ -233,7 +233,7 @@ func verifySignature(args []string) error {
 	if err != nil {
 		return pkg.NewErrorWithFix("Signature",
 			"clé de vérification introuvable : "+err.Error(),
-			"Exécutez 'sentient sign keygen' pour générer une paire de clés.",
+			"Exécutez 'sentients sign keygen' pour générer une paire de clés.",
 			pkg.ExitSigning)
 	}
 

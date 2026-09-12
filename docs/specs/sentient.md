@@ -1,8 +1,8 @@
-# Sentient CLI (`sentient`)
+# Sentient CLI (`sentients`)
 
 > **Statut : PLANNING (spécification complète, aucun code)**
 >
-> Ce document est la **spécification SpecKit de la CLI `sentient`**, outil en ligne de commande
+> Ce document est la **spécification SpecKit de la CLI `sentients`**, outil en ligne de commande
 > permettant aux développeurs d'initialiser, créer, construire, auditer, déboguer et publier des
 > modules Sentient via un compte développeur `sentient-connect`.
 >
@@ -16,7 +16,7 @@
 
 | Propriété | Valeur |
 |-----------|--------|
-| Identifiant | `sentient` |
+| Identifiant | `sentients` |
 | Nom | Sentient CLI |
 | Rôle | Outil CLI pour le cycle de vie complet des modules Sentient |
 | Type de spécification | Application Spec |
@@ -60,19 +60,19 @@ init → create → develop → debug → audit → pack → sign → link → p
 
 ### Dans le périmètre (In Scope)
 
-- `sentient init` — Initialisation d'un projet Sentient (clone + deps)
-- `sentient create module` — Création de module dans `external_modules/`
-- `sentient connect` — Authentification développeur (credentials + MFA)
-- `sentient disconnect` — Suppression des credentials
-- `sentient pack` — Build + compression d'un module (`.smp`)
-- `sentient sign` — Signature numérique Ed25519 des archives `.smp` (keygen / sign / verify)
-- `sentient publish` — Publication dans le store via Sentient Connect
-- `sentient link` — Liaison module local ↔ module en ligne
-- `sentient unlink` — Dé liaison module local ↔ module en ligne
-- `sentient debug <module>` — Debug d'un ou tous les modules
-- `sentient audit <module>` — Audit de conformité d'un ou tous les modules
-- `sentient help` — Affichage de l'aide
-- `sentient -v | --version` — Affichage de la version
+- `sentients init` — Initialisation d'un projet Sentient (clone + deps)
+- `sentients create module` — Création de module dans `external_modules/`
+- `sentients connect` — Authentification développeur (credentials + MFA)
+- `sentients disconnect` — Suppression des credentials
+- `sentients pack` — Build + compression d'un module (`.smp`)
+- `sentients sign` — Signature numérique Ed25519 des archives `.smp` (keygen / sign / verify)
+- `sentients publish` — Publication dans le store via Sentient Connect
+- `sentients link` — Liaison module local ↔ module en ligne
+- `sentients unlink` — Dé liaison module local ↔ module en ligne
+- `sentients debug <module>` — Debug d'un ou tous les modules
+- `sentients audit <module>` — Audit de conformité d'un ou tous les modules
+- `sentients help` — Affichage de l'aide
+- `sentients -v | --version` — Affichage de la version
 
 ### Hors périmètre (Out of Scope)
 
@@ -83,11 +83,11 @@ init → create → develop → debug → audit → pack → sign → link → p
 
 ### Périmètre futur (Future Scope)
 
-- `sentient test <module>` — Exécution des tests d'un module
-- `sentient watch` — Mode développement hot-reload
-- `sentient deploy` — Déploiement direct vers un environnement
-- `sentient auth` — Authentification OAuth2 PKCE (navigation navigateur)
-- `sentient marketplace` — Recherche/installation de modules tiers
+- `sentients test <module>` — Exécution des tests d'un module
+- `sentients watch` — Mode développement hot-reload
+- `sentients deploy` — Déploiement direct vers un environnement
+- `sentients auth` — Authentification OAuth2 PKCE (navigation navigateur)
+- `sentients marketplace` — Recherche/installation de modules tiers
 
 ---
 
@@ -98,29 +98,29 @@ init → create → develop → debug → audit → pack → sign → link → p
 | ID | Description |
 |----|-------------|
 | FR-001 | La CLI détecte automatiquement les gestionnaires de paquets disponibles (bun, pnpm, yarn, npm) et propose le choix à l'utilisateur |
-| FR-002 | `sentient init` clone le repository `protorians/sentient-cms` dans le répertoire courant |
-| FR-003 | `sentient init` installe les dépendances avec le gestionnaire choisi |
-| FR-004 | `sentient create module` crée un module dans `external_modules/<nom>/` avec structure standardisée |
-| FR-005 | `sentient create module` génère un token UUID unique dans `manifest.json` |
-| FR-006 | `sentient connect` authentifie le développeur via `sentient-connect` (email + mot de passe) |
-| FR-007 | `sentient connect` supporte le MFA (TOTP, backup codes) |
-| FR-008 | `sentient connect` stocke les credentials de manière sécurisée (keychain/credential store) |
-| FR-009 | `sentient disconnect` supprime toutes les credentials stockées |
-| FR-010 | `sentient pack` compresse `external_modules/<module>/` + `public/assets/<module>/` en `.smp` |
-| FR-011 | `sentient pack` déplace l'archive vers `.sentients/build/` |
-| FR-012 | `sentient publish` construit puis publie via l'API `sentient-connect` |
-| FR-013 | `sentient publish` demande les métadonnées du module si non définies |
-| FR-014 | `sentient link` lie un module local à un module existant dans `sentient-connect` |
-| FR-015 | `sentient unlink` délie un module local de `sentient-connect` |
-| FR-016 | `sentient debug` lance le debug d'un module ou de tous les modules |
-| FR-017 | `sentient audit` vérifie la conformité Clean Architecture, `manifest.json` et `index.tsx` |
-| FR-018 | `sentient audit` vérifie que les `requirements` et `dependencies` existent |
-| FR-019 | `sentient help` affiche l'aide contextuelle des commandes |
-| FR-020 | `sentient -v` / `sentient --version` affiche la version actuelle |
-| FR-021 | `sentient sign keygen` génère une paire de clés Ed25519 et la stocke dans le keychain système |
-| FR-022 | `sentient sign <module>` signe l'archive `.smp` du module et produit un fichier `.sig` |
-| FR-023 | `sentient sign verify <module>` vérifie la validité de la signature `.sig` d'un module |
-| FR-024 | `sentient sign` affiche le fingerprint SHA-256 de la clé publique du développeur |
+| FR-002 | `sentients init` clone le repository `protorians/sentient-cms` dans le répertoire courant |
+| FR-003 | `sentients init` installe les dépendances avec le gestionnaire choisi |
+| FR-004 | `sentients create module` crée un module dans `external_modules/<nom>/` avec structure standardisée |
+| FR-005 | `sentients create module` génère un token UUID unique dans `manifest.json` |
+| FR-006 | `sentients connect` authentifie le développeur via `sentient-connect` (email + mot de passe) |
+| FR-007 | `sentients connect` supporte le MFA (TOTP, backup codes) |
+| FR-008 | `sentients connect` stocke les credentials de manière sécurisée (keychain/credential store) |
+| FR-009 | `sentients disconnect` supprime toutes les credentials stockées |
+| FR-010 | `sentients pack` compresse `external_modules/<module>/` + `public/assets/<module>/` en `.smp` |
+| FR-011 | `sentients pack` déplace l'archive vers `.sentients/build/` |
+| FR-012 | `sentients publish` construit puis publie via l'API `sentient-connect` |
+| FR-013 | `sentients publish` demande les métadonnées du module si non définies |
+| FR-014 | `sentients link` lie un module local à un module existant dans `sentient-connect` |
+| FR-015 | `sentients unlink` délie un module local de `sentient-connect` |
+| FR-016 | `sentients debug` lance le debug d'un module ou de tous les modules |
+| FR-017 | `sentients audit` vérifie la conformité Clean Architecture, `manifest.json` et `index.tsx` |
+| FR-018 | `sentients audit` vérifie que les `requirements` et `dependencies` existent |
+| FR-019 | `sentients help` affiche l'aide contextuelle des commandes |
+| FR-020 | `sentients -v` / `sentients --version` affiche la version actuelle |
+| FR-021 | `sentients sign keygen` génère une paire de clés Ed25519 et la stocke dans le keychain système |
+| FR-022 | `sentients sign <module>` signe l'archive `.smp` du module et produit un fichier `.sig` |
+| FR-023 | `sentients sign verify <module>` vérifie la validité de la signature `.sig` d'un module |
+| FR-024 | `sentients sign` affiche le fingerprint SHA-256 de la clé publique du développeur |
 
 ### Exigences non-fonctionnelles
 
@@ -171,19 +171,19 @@ sentient-cli/
 ├── main.go                        # Point d'entrée
 ├── cmd/                           # Commandes CLI (couche présentation)
 │   ├── root.go                    # Commande racine (cobra/flag parsing)
-│   ├── init.go                    # sentient init
-│   ├── create.go                  # sentient create module
-│   ├── connect.go                 # sentient connect
-│   ├── disconnect.go              # sentient disconnect
-│   ├── pack.go                    # sentient pack
-│   ├── sign.go                    # sentient sign (keygen / sign / verify)
-│   ├── publish.go                 # sentient publish
-│   ├── link.go                    # sentient link
-│   ├── unlink.go                  # sentient unlink
-│   ├── debug.go                   # sentient debug
-│   ├── audit.go                   # sentient audit
-│   ├── help.go                    # sentient help
-│   └── version.go                 # sentient -v / --version
+│   ├── init.go                    # sentients init
+│   ├── create.go                  # sentients create module
+│   ├── connect.go                 # sentients connect
+│   ├── disconnect.go              # sentients disconnect
+│   ├── pack.go                    # sentients pack
+│   ├── sign.go                    # sentients sign (keygen / sign / verify)
+│   ├── publish.go                 # sentients publish
+│   ├── link.go                    # sentients link
+│   ├── unlink.go                  # sentients unlink
+│   ├── debug.go                   # sentients debug
+│   ├── audit.go                   # sentients audit
+│   ├── help.go                    # sentients help
+│   └── version.go                 # sentients -v / --version
 ├── internal/
 │   ├── config/                    # Configuration projet & CLI
 │   │   ├── config.go              # Lecture/écriture .sentient-cli.toml
@@ -274,7 +274,7 @@ Utilisateur
 
 ---
 
-### 5.1 `sentient init`
+### 5.1 `sentients init`
 
 #### Purpose
 
@@ -312,12 +312,12 @@ installant les dépendances.
 
   Prochaines étapes :
     cd mon-projet
-    sentient create module
+    sentients create module
 ```
 
 ---
 
-### 5.2 `sentient create module`
+### 5.2 `sentients create module`
 
 #### Purpose
 
@@ -428,14 +428,14 @@ export default declaration;
   ✓ index.tsx initialisé
 
   Prochaines étapes :
-    sentient connect
-    sentient pack blog-manager
-    sentient publish
+    sentients connect
+    sentients pack blog-manager
+    sentients publish
 ```
 
 ---
 
-### 5.3 `sentient connect`
+### 5.3 `sentients connect`
 
 #### Purpose
 
@@ -496,7 +496,7 @@ manière sécurisée.
 
 ---
 
-### 5.4 `sentient disconnect`
+### 5.4 `sentients disconnect`
 
 #### Purpose
 
@@ -527,7 +527,7 @@ Supprimer toutes les credentials stockées et déconnecter le développeur.
 
 ---
 
-### 5.5 `sentient pack`
+### 5.5 `sentients pack`
 
 #### Purpose
 
@@ -588,7 +588,7 @@ Construire le build d'un module et créer une archive `.smp` compressée.
 
 ---
 
-### 5.6 `sentient publish`
+### 5.6 `sentients publish`
 
 #### Purpose
 
@@ -597,7 +597,7 @@ Construire et publier un module dans le store via l'API `sentient-connect`.
 #### Comportement
 
 1. **Vérifier l'authentification** : token Bearer valide dans le keychain
-   - Si non connecté → `sentient connect` automatique
+   - Si non connecté → `sentients connect` automatique
 2. **Identifier le module** : sélecteur Bubbletea si non fourni
 3. **Vérifier le `manifest.json`** :
    - Si les métadonnées sont incomplètes (champs vides) → **demander** :
@@ -606,7 +606,7 @@ Construire et publier un module dans le store via l'API `sentient-connect`.
      - `publisher.id` : identifiant développeur
      - `publisher.name` : nom affiché du développeur
    - Proposer de mettre à jour le `manifest.json` local
-4. **Exécuter `sentient pack`** en interne (construction de l'archive)
+4. **Exécuter `sentients pack`** en interne (construction de l'archive)
 5. **Envoyer l'archive** à l'API :
    - `POST /store/modules/publish`
    - Headers : `Authorization: Bearer <token>`
@@ -621,7 +621,7 @@ Construire et publier un module dans le store via l'API `sentient-connect`.
 
 - L'authentification est **obligatoire**
 - La version doit être supérieure à la dernière version publiée (SemVer)
-- Le module doit passer l'audit (`sentient audit`) avant la publication
+- Le module doit passer l'audit (`sentients audit`) avant la publication
 - Si l'audit échoue → proposer de corriger avant de publier
 
 #### Sortie TUI
@@ -647,7 +647,7 @@ Construire et publier un module dans le store via l'API `sentient-connect`.
 
 ---
 
-### 5.7 `sentient link`
+### 5.7 `sentients link`
 
 #### Purpose
 
@@ -655,7 +655,7 @@ Lier un module créé dans `sentient-connect` avec le module en local.
 
 #### Comportement
 
-1. **Vérifier l'authentification** (sinon → `sentient connect`)
+1. **Vérifier l'authentification** (sinon → `sentients connect`)
 2. **Lister les modules locaux** dans `external_modules/` via sélecteur Bubbletea
 3. **Lister les modules en ligne** via API :
    - `GET /store/modules` (modules du développeur)
@@ -683,7 +683,7 @@ Lier un module créé dans `sentient-connect` avec le module en local.
 
 ---
 
-### 5.8 `sentient unlink`
+### 5.8 `sentients unlink`
 
 #### Purpose
 
@@ -691,7 +691,7 @@ Délier un module local de son correspondant dans `sentient-connect`.
 
 #### Comportement
 
-1. **Vérifier l'authentification** (sinon → `sentient connect`)
+1. **Vérifier l'authentification** (sinon → `sentients connect`)
 2. **Lister les modules locaux** ayant un token distant dans leur `manifest.json`
 3. **Afficher la liste** via sélecteur Bubbletea (modules liés uniquement)
 4. **Demander confirmation**
@@ -711,7 +711,7 @@ Délier un module local de son correspondant dans `sentient-connect`.
 
 ---
 
-### 5.9 `sentient debug <module>`
+### 5.9 `sentients debug <module>`
 
 #### Purpose
 
@@ -766,7 +766,7 @@ Lancer le debug d'un ou tous les modules dans `external_modules/`.
 
 ---
 
-### 5.10 `sentient audit <module>`
+### 5.10 `sentients audit <module>`
 
 #### Purpose
 
@@ -834,7 +834,7 @@ Auditer la conformité d'un ou tous les modules par rapport aux règles du syst�
 
 ---
 
-### 5.11 `sentient help`
+### 5.11 `sentients help`
 
 #### Purpose
 
@@ -851,7 +851,7 @@ Afficher l'aide contextuelle de la CLI.
 Sentient CLI — Outil de développement pour les modules Sentient
 
 Usage:
-  sentient <commande> [options]
+  sentients <commande> [options]
 
 Commandes disponibles:
   init                  Initialiser un projet Sentient
@@ -877,18 +877,18 @@ Options globales:
   --version             Afficher la version
 
 Exemples:
-  sentient init
-  sentient create module
-  sentient connect
-  sentient pack blog-manager
-  sentient sign blog-manager
-  sentient publish blog-manager
-  sentient audit
+  sentients init
+  sentients create module
+  sentients connect
+  sentients pack blog-manager
+  sentients sign blog-manager
+  sentients publish blog-manager
+  sentients audit
 ```
 
 ---
 
-### 5.12 `sentient -v` / `sentient --version`
+### 5.12 `sentients -v` / `sentients --version`
 
 #### Purpose
 
@@ -897,17 +897,17 @@ Afficher la version actuelle de la CLI.
 #### Comportement
 
 1. Lire la version compilée dans le binaire (via `ldflags`)
-2. Afficher : `sentient-cli v<version> (<os>/<arch>) <commit>`
+2. Afficher : `sentients v<version> (<os>/<arch>) <commit>`
 
 #### Sortie
 
 ```
-sentient-cli v0.1.0 (darwin/arm64) abc1234
+sentients v0.1.0 (darwin/arm64) abc1234
 ```
 
 ---
 
-### 5.13 `sentient sign`
+### 5.13 `sentients sign`
 
 #### Purpose
 
@@ -919,13 +919,13 @@ avant publication.
 
 | Sous-commande | Description |
 |---------------|-------------|
-| `sentient sign keygen` | Générer une paire de clés Ed25519 et la stocker dans le keychain |
-| `sentient sign <module>` | Signer l'archive `.smp` d'un module |
-| `sentient sign verify <module>` | Vérifier la signature d'un module |
+| `sentients sign keygen` | Générer une paire de clés Ed25519 et la stocker dans le keychain |
+| `sentients sign <module>` | Signer l'archive `.smp` d'un module |
+| `sentients sign verify <module>` | Vérifier la signature d'un module |
 
 ---
 
-##### 5.13.1 `sentient sign keygen`
+##### 5.13.1 `sentients sign keygen`
 
 ###### Comportement
 
@@ -955,7 +955,7 @@ avant publication.
 
 ---
 
-##### 5.13.2 `sentient sign <module>`
+##### 5.13.2 `sentients sign <module>`
 
 ###### Comportement
 
@@ -963,9 +963,9 @@ avant publication.
 2. **Identifier le module** : argument `<module>` ou sélecteur Bubbletea
 3. **Charger le `manifest.json`** du module pour obtenir la version
 4. **Vérifier que l'archive `.smp` existe** dans `.sentients/build/`
-   - Si absente → erreur avec suggestion d'exécuter `sentient pack <module>`
+   - Si absente → erreur avec suggestion d'exécuter `sentients pack <module>`
 5. **Charger la clé privée** depuis le keychain
-   - Si absente → erreur avec suggestion d'exécuter `sentient sign keygen`
+   - Si absente → erreur avec suggestion d'exécuter `sentients sign keygen`
 6. **Signer l'archive** :
    - Lire le contenu de l'archive `.smp`
    - Signer avec `ed25519.Sign(privateKey, archiveData)`
@@ -974,7 +974,7 @@ avant publication.
 
 ###### Contraintes
 
-- L'archive `.smp` doit exister (résultat de `sentient pack`)
+- L'archive `.smp` doit exister (résultat de `sentients pack`)
 - La clé privée doit exister dans le keychain
 - Si un fichier `.sig` existe déjà pour cette archive → demander confirmation (écraser)
 - Le fichier `.sig` est un binaire contenant uniquement la signature Ed25519 (64 octets)
@@ -995,7 +995,7 @@ avant publication.
 
 ---
 
-##### 5.13.3 `sentient sign verify <module>`
+##### 5.13.3 `sentients sign verify <module>`
 
 ###### Comportement
 
@@ -1004,7 +1004,7 @@ avant publication.
 3. **Charger le `manifest.json`** du module pour obtenir la version
 4. **Vérifier que l'archive `.smp` et le fichier `.sig` existent**
 5. **Charger la clé publique** depuis le keychain
-   - Si absente → erreur avec suggestion d'exécuter `sentient sign keygen`
+   - Si absente → erreur avec suggestion d'exécuter `sentients sign keygen`
 6. **Vérifier la signature** :
    - Lire l'archive `.smp` et le fichier `.sig`
    - Vérifier avec `ed25519.Verify(publicKey, archiveData, signature)`
@@ -1065,7 +1065,7 @@ log_level = "info"
 ### 6.2 Fichier `manifest.json` (par module)
 
 Le `manifest.json` est le fichier de métadonnées de chaque module. Voir la section
-`sentient create module` pour le schéma complet.
+`sentients create module` pour le schéma complet.
 
 ### 6.3 Keychain — Hiérarchie des clés
 
@@ -1118,7 +1118,7 @@ sentient-cli-signing/
 
 ### 7.5 MFA
 
-- Si le compte développeur a la MFA activée, `sentient connect` **exige** la vérification
+- Si le compte développeur a la MFA activée, `sentients connect` **exige** la vérification
 - Le secret TOTP peut être géré côté serveur (recommandé) ou stocké localement (optionnel)
 - Les backup codes sont utilisables uniquement en secours
 
@@ -1130,7 +1130,7 @@ sentient-cli-signing/
 - L'algorithme utilisé est **Ed25519** (signatures compactes de 64 octets, clés de 32 octets)
 - Les fichiers `.sig` sont des binaires contenant uniquement la signature Ed25519
 - La vérification de signature utilise la clé publique stockée dans le keychain
-- En cas de perte de clés, `sentient sign keygen` permet de régénérer une nouvelle paire
+- En cas de perte de clés, `sentients sign keygen` permet de régénérer une nouvelle paire
 
 ---
 
@@ -1220,7 +1220,7 @@ et adapte les couleurs en conséquence.
 version: 2
 builds:
   - main: .
-    binary: sentient
+    binary: sentients
     env:
       - CGO_ENABLED=0
     goos:
@@ -1239,7 +1239,7 @@ builds:
 archives:
   - format: tar.gz
     name_template: >-
-      sentient-cli_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+      sentients-cli_{{ .Version }}_{{ .Os }}_{{ .Arch }}
     format_overrides:
       - goos: windows
         format: zip
@@ -1320,7 +1320,7 @@ Exemple :
 
 ```
 ✗ Authentification : Token expiré
-  → Exécutez 'sentient connect' pour vous reconnecter.
+  → Exécutez 'sentients connect' pour vous reconnecter.
 ```
 
 ---
@@ -1340,31 +1340,31 @@ Exemple :
 
 | ID | Scénario |
 |----|----------|
-| TC-001 | `sentient init` avec bun détecté |
-| TC-002 | `sentient init` avec aucun gestionnaire détecté |
-| TC-003 | `sentient create module` avec nom invalide |
-| TC-004 | `sentient create module` avec nom valide |
-| TC-005 | `sentient connect` succès sans MFA |
-| TC-006 | `sentient connect` avec MFA TOTP |
-| TC-007 | `sentient connect` échec (mauvais identifiants) |
-| TC-008 | `sentient disconnect` avec confirmation |
-| TC-009 | `sentient pack` module existant |
-| TC-010 | `sentient pack` module avec assets |
-| TC-011 | `sentient publish` succès |
-| TC-012 | `sentient publish` version existante |
-| TC-013 | `sentient link` succès |
-| TC-014 | `sentient unlink` succès |
-| TC-015 | `sentient debug` module unique |
-| TC-016 | `sentient debug` tous les modules |
-| TC-017 | `sentient audit` module conforme |
-| TC-018 | `sentient audit` module avec erreurs |
-| TC-019 | `sentient help` sans argument |
-| TC-020 | `sentient help` avec commande |
-| TC-021 | `sentient -v` affiche la version |
-| TC-022 | `sentient sign keygen` génère et stocke les clés Ed25519 |
-| TC-023 | `sentient sign <module>` signe l'archive `.smp` et produit un `.sig` |
-| TC-024 | `sentient sign verify <module>` vérifie une signature valide |
-| TC-025 | `sentient sign verify <module>` échoue sur archive modifiée ou signature invalide |
+| TC-001 | `sentients init` avec bun détecté |
+| TC-002 | `sentients init` avec aucun gestionnaire détecté |
+| TC-003 | `sentients create module` avec nom invalide |
+| TC-004 | `sentients create module` avec nom valide |
+| TC-005 | `sentients connect` succès sans MFA |
+| TC-006 | `sentients connect` avec MFA TOTP |
+| TC-007 | `sentients connect` échec (mauvais identifiants) |
+| TC-008 | `sentients disconnect` avec confirmation |
+| TC-009 | `sentients pack` module existant |
+| TC-010 | `sentients pack` module avec assets |
+| TC-011 | `sentients publish` succès |
+| TC-012 | `sentients publish` version existante |
+| TC-013 | `sentients link` succès |
+| TC-014 | `sentients unlink` succès |
+| TC-015 | `sentients debug` module unique |
+| TC-016 | `sentients debug` tous les modules |
+| TC-017 | `sentients audit` module conforme |
+| TC-018 | `sentients audit` module avec erreurs |
+| TC-019 | `sentients help` sans argument |
+| TC-020 | `sentients help` avec commande |
+| TC-021 | `sentients -v` affiche la version |
+| TC-022 | `sentients sign keygen` génère et stocke les clés Ed25519 |
+| TC-023 | `sentients sign <module>` signe l'archive `.smp` et produit un `.sig` |
+| TC-024 | `sentients sign verify <module>` vérifie une signature valide |
+| TC-025 | `sentients sign verify <module>` échoue sur archive modifiée ou signature invalide |
 
 ---
 
@@ -1376,33 +1376,33 @@ Product: sentient-cli v1.0.0
 ├── Release 0.1.0 (MVP)
 │   │
 │   ├── Epic E-001 : Initialisation & Création
-│   │   ├── Story S-001 : `sentient init` (clone + deps)
-│   │   └── Story S-002 : `sentient create module`
+│   │   ├── Story S-001 : `sentients init` (clone + deps)
+│   │   └── Story S-002 : `sentients create module`
 │   │
 │   ├── Epic E-002 : Authentification
-│   │   ├── Story S-003 : `sentient connect` (email/password)
-│   │   ├── Story S-004 : `sentient connect` (MFA TOTP)
-│   │   └── Story S-005 : `sentient disconnect`
+│   │   ├── Story S-003 : `sentients connect` (email/password)
+│   │   ├── Story S-004 : `sentients connect` (MFA TOTP)
+│   │   └── Story S-005 : `sentients disconnect`
 │   │
 │   └── Epic E-003 : Build & Informations
-│       ├── Story S-006 : `sentient pack`
-│       └── Story S-007 : `sentient -v` + `sentient help`
+│       ├── Story S-006 : `sentients pack`
+│       └── Story S-007 : `sentients -v` + `sentients help`
 │
 ├── Release 0.2.0 (Store)
 │   │
 │   ├── Epic E-004 : Publication
-│   │   ├── Story S-008 : `sentient publish`
-│   │   ├── Story S-009 : `sentient link`
-│   │   └── Story S-010 : `sentient unlink`
+│   │   ├── Story S-008 : `sentients publish`
+│   │   ├── Story S-009 : `sentients link`
+│   │   └── Story S-010 : `sentients unlink`
 │   │
 │   ├── Epic E-005 : Validation
-│   │   ├── Story S-011 : `sentient audit`
-│   │   └── Story S-012 : `sentient debug`
+│   │   ├── Story S-011 : `sentients audit`
+│   │   └── Story S-012 : `sentients debug`
 │   │
 │   └── Epic E-008 : Signature numérique
-│       ├── Story S-019 : `sentient sign keygen` (génération clés Ed25519)
-│       ├── Story S-020 : `sentient sign <module>` (signature archive .smp)
-│       └── Story S-021 : `sentient sign verify <module>` (vérification signature)
+│       ├── Story S-019 : `sentients sign keygen` (génération clés Ed25519)
+│       ├── Story S-020 : `sentients sign <module>` (signature archive .smp)
+│       └── Story S-021 : `sentients sign verify <module>` (vérification signature)
 │
 └── Release 0.3.0 (Qualité)
     │
@@ -1428,7 +1428,7 @@ Product: sentient-cli v1.0.0
 | R-003 | Taille du binaire trop élevée | Faible | Faible | `ldflags -s -w`, UPX compression optionnelle |
 | R-004 | Breaking changes API `sentient-connect` | Faible | Élevé | Versioning API, détection automatique de la version |
 | R-005 | Conflits de noms de modules | Moyenne | Moyen | Validation stricte, vérification d'unicité avant création |
-| R-006 | Archive `.smp` corrompue ou falsifiée | Faible | Élevé | Signature numérique Ed25519 (`sentient sign`), vérification avant publication |
+| R-006 | Archive `.smp` corrompue ou falsifiée | Faible | Élevé | Signature numérique Ed25519 (`sentients sign`), vérification avant publication |
 | R-007 | MFA bloquant (appareil perdu) | Faible | Élevé | Backup codes, procédure de récupération via `sentient-connect` web |
 
 ---

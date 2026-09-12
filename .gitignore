@@ -1,8 +1,8 @@
 # Build artifacts
-/sentient
+/sentients
 /dist/
-npm/sentient-cli/bin/sentient
-npm/sentient-cli/bin/sentient.exe
+npm/sentient-cli/bin/sentients
+npm/sentient-cli/bin/sentients.exe
 
 # Local build outputs
 .sentients/

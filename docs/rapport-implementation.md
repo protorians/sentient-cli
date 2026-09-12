@@ -33,54 +33,54 @@ ont une implémentation (parfois partielle). Le reste des FR (001→024) est cou
 
 ## 2. Ce qui est implémenté (par commande)
 
-### `sentient init` (FR-001, FR-002, FR-003)
+### `sentients init` (FR-001, FR-002, FR-003)
 - Clone shallow de `protorians/sentient-cms` (dossier cible demandé, confirmation/écrasement si existe).
 - Détection des package managers `bun → pnpm → yarn → npm` (FR-001) + choix interactif.
 - Installation des dépendances (non bloquante, simple `warn` en cas d'échec).
 - Écrit `.sentient-cli.toml` (config projet).
 
-### `sentient create module [nom]` (FR-004, FR-005)
+### `sentients create module [nom]` (FR-004, FR-005)
 - Génère la structure `external_modules/<nom>/` : `manifest.json`, `index.tsx`, `README.md`,
   `components/`, `hooks/`, `services/` (avec `.gitkeep`).
 - Token UUID v4 dans le manifest (FR-005), key en `UPPER_SNAKE_CASE`.
 
-### `sentient connect` (FR-006, FR-007, FR-008)
+### `sentients connect` (FR-006, FR-007, FR-008)
 - Sign-in email/mot de passe via `POST /auth/sign-in`, refresh token + expiration.
 - MFA TOTP / backup codes via `/mfa/challenge`, `/mfa/totp/verify`, `/mfa/recovery/verify`.
 - Credentials stockées dans le keychain OS (`go-keyring`), avec store chiffré de repli.
 - Base URL via env `SENTIENT_CONNECT_API` ou `app.config.json`.
 
-### `sentient disconnect` (FR-008, FR-009)
+### `sentients disconnect` (FR-008, FR-009)
 - Invalidation serveur best-effort (`POST /auth/sign-out`) + suppression locale, avec confirmation.
 
-### `sentient pack [module]` (FR-010, FR-011)
+### `sentients pack [module]` (FR-010, FR-011)
 - Zip `external_modules/<module>/` + `public/assets/<module>/` → `.sentients/build/<module>-<version>.smp`.
 - Validation préalable du manifest (via `Validator`), limite 50 Mo (`MaxArchiveSize`).
 
-### `sentient sign` (FR-021 → FR-024) — `sign keygen` / `sign <module>` / `sign verify <module>`
+### `sentients sign` (FR-021 → FR-024) — `sign keygen` / `sign <module>` / `sign verify <module>`
 - Paires de clés **Ed25519**, stockées dans le keychain (service `sentient-cli-signing`).
 - Signature binaire 64 octets dans `<archive>.smp.sig` ; vérification sur archive + clé publique.
 - Fingerprint SHA-256 de la clé publique (commande `sign` sans argument).
 
-### `sentient publish [module]` (FR-012, FR-013)
+### `sentients publish [module]` (FR-012, FR-013)
 - Authentification obligatoire, auto-audit pré-publication (config `auto_audit`), complétion
   interactive des métadonnées (`name`, `description`, `publisher.*`), pack puis upload multipart
   `POST /store/modules/publish`.
 
-### `sentient link` / `sentient unlink` (FR-014, FR-015)
+### `sentients link` / `sentients unlink` (FR-014, FR-015)
 - `link` : liste les modules distants (`GET /store/modules`), valide le token (`GET /store/modules/:token`),
   écrit le token distant dans le `manifest.json` local.
 - `unlink` : régénère un token UUID local (déliaison locale ; pas d'appel API de mise à jour).
 
-### `sentient debug [module]` (FR-016)
+### `sentients debug [module]` (FR-016)
 - Validation + tentative de build de diagnostic (single ou table tous modules), logs formatés.
 
-### `sentient audit [module]` (FR-017, FR-018)
+### `sentients audit [module]` (FR-017, FR-018)
 - Audit : Clean Architecture (imports croisés, JSX dans services, index async+render), manifest
   (id/name/version semver/token UUID/entry/domain), index.tsx, requirements, assets.
 - Sortie tableau TUI ou JSON (`--output json`), résumé erreurs/warnings.
 
-### `sentient help`, `sentient -v` / `--version` (FR-019, FR-020)
+### `sentients help`, `sentients -v` / `--version` (FR-019, FR-020)
 - Aide contextuelle Cobra ; version injectée via ldflags (`main.version/commit/date`).
 - Auto-update non bloquant (NFR-006) via GitHub releases (cache 24 h, **notification seule**).
 
@@ -109,7 +109,7 @@ ont une implémentation (parfois partielle). Le reste des FR (001→024) est cou
   - `auth.NewStore()` (credentials.go:63) et `signing.NewKeyStore()` (keystore.go:43) retournent
     toujours le store keychain. Le fallback AES-256-GCM (`credentials.enc` / `signing.enc`) existe
     mais n'est **jamais activé** si le keychain n'est pas disponible (ce que promettent la spec §7.6,
-    R-002 et l'aide `sentient sign`).
+    R-002 et l'aide `sentients sign`).
   - `signing.NewKeyStoreVolatile()` et `auth.NewStoreVolatile()` sont du code mort (non appelé).
 - **Passphrases dures codées** pour le chiffrement de repli : `"sentient-cli-fallback-v1"`
   (credentials.go:77) et `"sentient-cli-signing-v1"` (keystore.go:55) → AES = SHA-256 de la passphrase
@@ -183,16 +183,16 @@ La spec découpe 3 releases. État actuel : quasi tout le « MVP » et le « Sto
 4. **`publish` env.** : gestion du conflit de version (bump SemVer), `PUT /store/modules/:token`.
 5. **`debug` env.** : build réel des modules, découverte du script dans le `package.json` du module
    (pas de la racine).
-6. **Telese spec** : `sentient test <module>`, `sentient watch` (hot-reload), `sentient deploy`,
-   `sentient auth` (OAuth2 PKCE), `sentient marketplace` (§2.4 future scope).
+6. **Telese spec** : `sentients test <module>`, `sentients watch` (hot-reload), `sentients deploy`,
+   `sentients auth` (OAuth2 PKCE), `sentients marketplace` (§2.4 future scope).
 
 ---
 
 ## 6. Commandes utiles
 
 ```bash
-go build -o sentient .
-./sentient --help
+go build -o sentients .
+./sentients --help
 go test ./...
 go vet ./...
 goreleaser release --clean   # release multi-plateforme

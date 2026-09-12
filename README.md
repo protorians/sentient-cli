@@ -17,28 +17,28 @@ Cycle de vie : `init → create → develop → debug → audit → pack → sig
 ## Installation (développement)
 
 ```bash
-go build -o sentient .
-./sentient --help
+go build -o sentients .
+./sentients --help
 ```
 
 ## Commandes
 
 | Commande | Description |
 |----------|-------------|
-| `sentient init` | Cloner `protorians/sentient-cms` + installer les dépendances (détection bun/pnpm/yarn/npm) |
-| `sentient create module [nom]` | Créer un module standardisé dans `external_modules/` |
-| `sentient connect` | Authentification via sentient-connect (email + mot de passe, MFA TOTP / backup codes) |
-| `sentient disconnect` | Invalider le token côté serveur et supprimer les credentials |
-| `sentient pack [module]` | Construire l'archive `.smp` dans `.sentients/build/` |
-| `sentient sign keygen` | Générer une paire de clés Ed25519 pour la signature |
-| `sentient sign [module]` | Signer l'archive `.smp` d'un module |
-| `sentient sign verify [module]` | Vérifier la signature d'un module |
-| `sentient publish [module]` | Auditer, packer et publier un module sur le store |
-| `sentient link` / `unlink` | Associer un module local à un module distant du store (token) |
-| `sentient audit [module]` | Auditer la conformité (Clean Architecture, manifest, dépendances) |
-| `sentient debug [module]` | Valider le module et lancer un build de diagnostic |
-| `sentient -v` / `--version` | Afficher la version |
-| `sentient help` | Aide contextuelle |
+| `sentients init` | Cloner `protorians/sentient-cms` + installer les dépendances (détection bun/pnpm/yarn/npm) |
+| `sentients create module [nom]` | Créer un module standardisé dans `external_modules/` |
+| `sentients connect` | Authentification via sentient-connect (email + mot de passe, MFA TOTP / backup codes) |
+| `sentients disconnect` | Invalider le token côté serveur et supprimer les credentials |
+| `sentients pack [module]` | Construire l'archive `.smp` dans `.sentients/build/` |
+| `sentients sign keygen` | Générer une paire de clés Ed25519 pour la signature |
+| `sentients sign [module]` | Signer l'archive `.smp` d'un module |
+| `sentients sign verify [module]` | Vérifier la signature d'un module |
+| `sentients publish [module]` | Auditer, packer et publier un module sur le store |
+| `sentients link` / `unlink` | Associer un module local à un module distant du store (token) |
+| `sentients audit [module]` | Auditer la conformité (Clean Architecture, manifest, dépendances) |
+| `sentients debug [module]` | Valider le module et lancer un build de diagnostic |
+| `sentients -v` / `--version` | Afficher la version |
+| `sentients help` | Aide contextuelle |
 
 ## Configuration
 
@@ -85,7 +85,7 @@ go vet ./...
 
 ```bash
 # Binaire local
-go build -ldflags "-X main.version=$(git describe --tags) -X main.commit=$(git rev-parse --short HEAD)" -o sentient .
+go build -ldflags "-X main.version=$(git describe --tags) -X main.commit=$(git rev-parse --short HEAD)" -o sentients .
 
 # Release multi-plateforme
 goreleaser release --clean

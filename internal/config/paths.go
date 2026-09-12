@@ -48,7 +48,7 @@ func FindProjectRoot(start string) (string, error) {
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("aucun projet Sentient trouvé (recherche de %q ou %q) — exécutez 'sentient init'",
+			return "", fmt.Errorf("aucun projet Sentient trouvé (recherche de %q ou %q) — exécutez 'sentients init'",
 				SentientConfigName, ExternalModulesDir)
 		}
 		dir = parent

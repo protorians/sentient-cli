@@ -7,7 +7,7 @@ before:
 
 builds:
   - main: .
-    binary: sentient
+    binary: sentients
     env:
       - CGO_ENABLED=0
     goos:
@@ -31,7 +31,7 @@ archives:
     formats:
       - tar.gz
     name_template: >-
-      sentient-cli_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+      sentients-cli_{{ .Version }}_{{ .Os }}_{{ .Arch }}
     format_overrides:
       - goos: windows
         formats:
@@ -40,7 +40,7 @@ archives:
     formats:
       - binary
     name_template: >-
-      sentient_{{ .Version }}_{{ .Os }}_{{ .Arch }}
+      sentients_{{ .Version }}_{{ .Os }}_{{ .Arch }}
 
 release:
   name_template: "{{ .ProjectName }} v{{ .Version }}"
@@ -49,11 +49,11 @@ release:
 
     | Platform | Architecture | Archive | Binary |
     |----------|--------------|---------|--------|
-    | Linux | amd64 | `sentient-cli_{{ .Version }}_linux_amd64.tar.gz` | `sentient_{{ .Version }}_linux_amd64` |
-    | Linux | arm64 | `sentient-cli_{{ .Version }}_linux_arm64.tar.gz` | `sentient_{{ .Version }}_linux_arm64` |
-    | macOS | amd64 (Intel) | `sentient-cli_{{ .Version }}_darwin_amd64.tar.gz` | `sentient_{{ .Version }}_darwin_amd64` |
-    | macOS | arm64 (Apple Silicon) | `sentient-cli_{{ .Version }}_darwin_arm64.tar.gz` | `sentient_{{ .Version }}_darwin_arm64` |
-    | Windows | amd64 | `sentient-cli_{{ .Version }}_windows_amd64.zip` | `sentient_{{ .Version }}_windows_amd64.exe` |
+    | Linux | amd64 | `sentients-cli_{{ .Version }}_linux_amd64.tar.gz` | `sentients_{{ .Version }}_linux_amd64` |
+    | Linux | arm64 | `sentients-cli_{{ .Version }}_linux_arm64.tar.gz` | `sentients_{{ .Version }}_linux_arm64` |
+    | macOS | amd64 (Intel) | `sentients-cli_{{ .Version }}_darwin_amd64.tar.gz` | `sentients_{{ .Version }}_darwin_amd64` |
+    | macOS | arm64 (Apple Silicon) | `sentients-cli_{{ .Version }}_darwin_arm64.tar.gz` | `sentients_{{ .Version }}_darwin_arm64` |
+    | Windows | amd64 | `sentients-cli_{{ .Version }}_windows_amd64.zip` | `sentients_{{ .Version }}_windows_amd64.exe` |
 
     Checksums for all binaries and archives are in `checksums.txt`.
 

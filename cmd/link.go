@@ -49,7 +49,7 @@ func runLink(cmd *cobra.Command) error {
 	if err != nil || sess == nil || !sess.IsAuthenticated() {
 		return pkg.NewErrorWithFix("Authentification",
 			"vous devez être connecté pour lier un module",
-			"Exécutez 'sentient connect' d'abord.", pkg.ExitAuth)
+			"Exécutez 'sentients connect' d'abord.", pkg.ExitAuth)
 	}
 
 	// Select local module
@@ -73,7 +73,7 @@ func runLink(cmd *cobra.Command) error {
 	if len(remoteModules) == 0 {
 		return pkg.NewErrorWithFix("Store",
 			"aucun module trouvé dans sentient-connect",
-			"Publiez d'abord un module avec 'sentient publish'.", pkg.ExitError)
+			"Publiez d'abord un module avec 'sentients publish'.", pkg.ExitError)
 	}
 
 	// Ask for remote token

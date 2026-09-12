@@ -18,20 +18,20 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "sentient",
+	Use:   "sentients",
 	Short: "Sentient CLI — Outil de développement pour les modules Sentient",
 	Long: `Sentient CLI est l'outil de développement unique pour créer, maintenir
 et publier des modules dans l'écosystème Sentient.
 
 Le cycle de vie complet : init → create → develop → debug → audit → pack → sign → publish.
 `,
-	Example: `  sentient init
-  sentient create module
-  sentient connect
-  sentient pack blog-manager
-  sentient sign blog-manager
-  sentient publish blog-manager
-  sentient audit`,
+	Example: `  sentients init
+  sentients create module
+  sentients connect
+  sentients pack blog-manager
+  sentients sign blog-manager
+  sentients publish blog-manager
+  sentients audit`,
 	SilenceUsage:  true,
 	SilenceErrors: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -43,7 +43,7 @@ func init() {
 	rootCmd.PersistentFlags().BoolVar(&flagVerbose, "verbose", false, "activer les logs détaillés")
 	rootCmd.PersistentFlags().BoolVar(&flagNoColor, "no-color", false, "désactiver les couleurs")
 
-	rootCmd.SetVersionTemplate("sentient {{.Version}}\n")
+	rootCmd.SetVersionTemplate("sentients {{.Version}}\n")
 
 	rootCmd.AddCommand(
 		initCmd,
@@ -95,7 +95,7 @@ func debugf(format string, args ...any) {
 	if !flagVerbose && os.Getenv("SENTIENT_CLI_DEBUG") == "" {
 		return
 	}
-	fmt.Fprintf(os.Stderr, "[sentient] "+format+"\n", args...)
+	fmt.Fprintf(os.Stderr, "[sentients] "+format+"\n", args...)
 }
 
 // warn prints a warning to stderr.

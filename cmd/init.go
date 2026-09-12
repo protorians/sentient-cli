@@ -12,10 +12,10 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// templateRepo is the repository cloned by `sentient init` (spec FR-002).
+// templateRepo is the repository cloned by `sentients init` (spec FR-002).
 const templateRepo = "https://github.com/protorians/sentient-cms"
 
-// packageManagers is the detection + install order for `sentient init`.
+// packageManagers is the detection + install order for `sentients init`.
 var packageManagers = []struct {
 	name       string
 	installCmd []string
@@ -164,8 +164,8 @@ func runInit(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println(s.SubHeader.Render("Prochaines étapes :"))
 	fmt.Printf("  %s\n", s.Info.Render("cd "+targetDir))
-	fmt.Printf("  %s\n", s.Info.Render("sentient connect"))
-	fmt.Printf("  %s\n", s.Info.Render("sentient create module"))
+	fmt.Printf("  %s\n", s.Info.Render("sentients connect"))
+	fmt.Printf("  %s\n", s.Info.Render("sentients create module"))
 	return nil
 }
 

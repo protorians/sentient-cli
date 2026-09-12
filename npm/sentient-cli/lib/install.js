@@ -10,7 +10,7 @@ const https = require("https");
 const http = require("http");
 
 const REPO = "protorians/sentient-cli";
-const BINARY_NAME = "sentient";
+const BINARY_NAME = "sentients";
 
 const PLATFORM_MAP = {
   darwin: { amd64: "darwin_amd64", arm64: "darwin_arm64" },

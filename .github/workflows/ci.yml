@@ -93,11 +93,11 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "0"
-        run: go build -trimpath -ldflags "-s -w" -o sentient-${{ matrix.goos }}-${{ matrix.goarch }} .
+        run: go build -trimpath -ldflags "-s -w" -o sentients-${{ matrix.goos }}-${{ matrix.goarch }} .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v5
         with:
-          name: sentient-${{ matrix.goos }}-${{ matrix.goarch }}
-          path: sentient-${{ matrix.goos }}-${{ matrix.goarch }}
+          name: sentients-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: sentients-${{ matrix.goos }}-${{ matrix.goarch }}
           retention-days: 1

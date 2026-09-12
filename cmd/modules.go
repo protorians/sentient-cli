@@ -23,7 +23,7 @@ func requireProjectRoot() (string, error) {
 		return "", pkg.NewErrorWithFix(
 			"Projet",
 			err.Error(),
-			"Exécutez 'sentient init' pour initialiser un projet Sentient.",
+			"Exécutez 'sentients init' pour initialiser un projet Sentient.",
 			pkg.ExitModuleNotFound,
 		)
 	}
@@ -67,7 +67,7 @@ func resolveModule(root string, args []string) (string, error) {
 			return "", pkg.NewErrorWithFix(
 				"Module",
 				fmt.Sprintf("le module %q n'existe pas dans %s", name, config.ExternalModulesDir),
-				"Vérifiez le nom du module ou exécutez 'sentient create module'.",
+				"Vérifiez le nom du module ou exécutez 'sentients create module'.",
 				pkg.ExitModuleNotFound,
 			)
 		}

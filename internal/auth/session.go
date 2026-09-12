@@ -86,7 +86,7 @@ func (s *Session) Save() error {
 // Refresh renews the access token using the stored refresh token.
 func (s *Session) Refresh(ctx context.Context, connector *Connector) error {
 	if s.RefreshToken == "" {
-		return fmt.Errorf("aucun refresh token disponible — exécutez 'sentient connect'")
+		return fmt.Errorf("aucun refresh token disponible — exécutez 'sentients connect'")
 	}
 	resp, err := connector.Refresh(ctx, s.RefreshToken)
 	if err != nil {
@@ -112,7 +112,7 @@ func (s *Session) Clear() error {
 // ValidToken returns a non-expired access token, refreshing when needed.
 func (s *Session) ValidToken(ctx context.Context, connector *Connector) (string, error) {
 	if !s.IsAuthenticated() {
-		return "", fmt.Errorf("non authentifié — exécutez 'sentient connect'")
+		return "", fmt.Errorf("non authentifié — exécutez 'sentients connect'")
 	}
 	if s.IsExpired() {
 		if err := s.Refresh(ctx, connector); err != nil {
